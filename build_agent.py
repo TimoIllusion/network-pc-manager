@@ -34,9 +34,21 @@ def run(cmd, **kwargs):
     subprocess.check_call(cmd, **kwargs)
 
 
+def inject_version():
+    """Write version.py from the VERSION env var if set, otherwise keep the placeholder."""
+    version = os.environ.get("VERSION", "").strip()
+    if version:
+        with open("version.py", "w") as f:
+            f.write(f'__version__ = "{version}"\n')
+        print(f"  -> Injected version: {version}")
+    else:
+        print("  -> No VERSION env var set; using placeholder from version.py")
+
+
 def build_exe():
     """Use PyInstaller to create a single-file executable."""
     print("[1/3] Building standalone executable with PyInstaller...")
+    inject_version()
     run([
         sys.executable, "-m", "PyInstaller",
         "--onefile",
