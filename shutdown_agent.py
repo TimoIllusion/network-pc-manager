@@ -28,6 +28,8 @@ import sys
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+from version import __version__
+
 DEFAULT_PORT = 9876
 SHUTDOWN_DELAY_SECONDS = 3
 
@@ -88,7 +90,7 @@ class ShutdownHandler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "hostname": platform.node(),
                     "system": platform.system(),
-                    "version": "1.0.0",
+                    "version": __version__,
                 },
             )
         else:
@@ -169,7 +171,7 @@ Environment variables:
     ShutdownHandler.passphrase = args.passphrase
 
     server = HTTPServer((args.bind, args.port), ShutdownHandler)
-    print(f"Network PC Manager Shutdown Agent v1.0.0")
+    print(f"Network PC Manager Shutdown Agent {__version__}")
     print(f"  Hostname : {platform.node()}")
     print(f"  System   : {platform.system()} {platform.release()}")
     print(f"  Listening: http://{args.bind}:{args.port}")

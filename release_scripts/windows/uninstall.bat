@@ -1,6 +1,5 @@
 @echo off
 REM ─── Network PC Manager - Shutdown Agent Uninstaller ───────────────────────
-REM Usage: Right-click > Run as Administrator
 REM ────────────────────────────────────────────────────────────────────────────
 setlocal
 
@@ -9,15 +8,14 @@ echo   Network PC Manager - Shutdown Agent Uninstaller
 echo ======================================================
 echo.
 
-REM ─── Check admin privileges ─────────────────────────────────────────────────
+REM ─── Auto-elevate if not running as admin ───────────────────────────────────
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] This uninstaller must be run as Administrator.
-    echo         Right-click uninstall.bat and select "Run as administrator".
-    echo.
-    pause
-    exit /b 1
+    echo Requesting administrator privileges...
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
 )
+cd /d "%~dp0"
 
 set "INSTALL_DIR=%ProgramFiles%\NetworkPCManager"
 set "TASK_NAME=NetworkPCManager-ShutdownAgent"

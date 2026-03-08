@@ -1,7 +1,6 @@
 @echo off
 REM ─── Network PC Manager - Shutdown Agent Installer ─────────────────────────
 REM Standalone installer - no Python required.
-REM Usage: Right-click > Run as Administrator
 REM ────────────────────────────────────────────────────────────────────────────
 setlocal enabledelayedexpansion
 
@@ -10,15 +9,14 @@ echo   Network PC Manager - Shutdown Agent Installer
 echo ======================================================
 echo.
 
-REM ─── Check admin privileges ─────────────────────────────────────────────────
+REM ─── Auto-elevate if not running as admin ───────────────────────────────────
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] This installer must be run as Administrator.
-    echo         Right-click install.bat and select "Run as administrator".
-    echo.
-    pause
-    exit /b 1
+    echo Requesting administrator privileges...
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
 )
+cd /d "%~dp0"
 
 REM ─── Verify exe exists next to this script ──────────────────────────────────
 set "SCRIPT_DIR=%~dp0"

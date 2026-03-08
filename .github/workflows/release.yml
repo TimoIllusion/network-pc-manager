@@ -28,6 +28,15 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
+      - name: Set version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=v0.0.0-dev-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+          fi
+
       - name: Build release package
         run: python build_agent.py
 
