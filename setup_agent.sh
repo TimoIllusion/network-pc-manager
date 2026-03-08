@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ─── WOL-Proxy Shutdown Agent Setup (Linux / macOS) ─────────────────────────
+# Run this on each target machine to install the shutdown agent as a service.
+# Usage: bash setup_agent.sh
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENT_SCRIPT="$SCRIPT_DIR/shutdown_agent.py"
+SERVICE_NAME="wol-shutdown-agent"
+
+[ -f "$AGENT_SCRIPT" ] || error "shutdown_agent.py not found in $SCRIPT_DIR"
+command -v python3 &>/dev/null || error "python3 is required but not installed."
+
+# ─── Prompt for configuration ────────────────────────────────────────────────
+echo -e "${CYAN}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║   WOL-Proxy Shutdown Agent Setup             ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
+echo
+
+read -rp "Enter passphrase (min 8 characters): " PASSPHRASE
+[ ${#PASSPHRASE} -ge 8 ] || error "Passphrase must be at least 8 characters."
+
+read -rp "Enter port [9876]: " PORT
+PORT="${PORT:-9876}"
+
+# ─── Install based on init system ────────────────────────────────────────────
+PYTHON3_PATH="$(command -v python3)"
+
+if [[ "$(uname)" == "Darwin" ]]; then
+    # ── macOS: launchd plist ──
+    PLIST_PATH="$HOME/Library/LaunchAgents/com.wol-proxy.shutdown-agent.plist"
+    info "Installing launchd service at $PLIST_PATH..."
+    mkdir -p "$HOME/Library/LaunchAgents"
+    cat > "$PLIST_PATH" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wol-proxy.shutdown-agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${PYTHON3_PATH}</string>
+        <string>${AGENT_SCRIPT}</string>
+        <string>--port</string>
+        <string>${PORT}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>WOL_AGENT_PASSPHRASE</key>
+        <string>${PASSPHRASE}</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>/tmp/wol-shutdown-agent.log</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/wol-shutdown-agent.log</string>
+</dict>
+</plist>
+PLIST
+    launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    launchctl load "$PLIST_PATH"
+    info "Service started via launchd."
+
+elif command -v systemctl &>/dev/null; then
+    # ── Linux with systemd ──
+    SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+    info "Installing systemd service at $SERVICE_FILE..."
+    sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=WOL-Proxy Shutdown Agent
+After=network.target
+
+[Service]
+Type=simple
+Environment=WOL_AGENT_PASSPHRASE=${PASSPHRASE}
+ExecStart=${PYTHON3_PATH} ${AGENT_SCRIPT} --port ${PORT}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable "$SERVICE_NAME"
+    sudo systemctl restart "$SERVICE_NAME"
+    info "Service started via systemd."
+
+else
+    # ── Fallback: cron @reboot ──
+    warn "No systemd or launchd found. Falling back to cron."
+    CRON_CMD="@reboot WOL_AGENT_PASSPHRASE='${PASSPHRASE}' ${PYTHON3_PATH} ${AGENT_SCRIPT} --port ${PORT}"
+    if crontab -l 2>/dev/null | grep -qF "shutdown_agent.py"; then
+        warn "Cron entry already exists – replacing."
+        crontab -l 2>/dev/null | grep -vF "shutdown_agent.py" | { cat; echo "$CRON_CMD"; } | crontab -
+    else
+        (crontab -l 2>/dev/null || true; echo "$CRON_CMD") | crontab -
+    fi
+    info "Cron entry added. Starting agent now..."
+    WOL_AGENT_PASSPHRASE="$PASSPHRASE" nohup "$PYTHON3_PATH" "$AGENT_SCRIPT" --port "$PORT" &>/tmp/wol-shutdown-agent.log &
+    info "Agent started (PID: $!)."
+fi
+
+# ─── Done ────────────────────────────────────────────────────────────────────
+echo
+info "Setup complete!"
+echo
+echo -e "  Agent running on port ${CYAN}${PORT}${NC}"
+echo -e "  Passphrase: ${CYAN}(as configured)${NC}"
+echo
+echo "  Test with:"
+echo "    curl -s http://localhost:${PORT}/health"
+echo
+echo "  Enter this passphrase in the wol-proxy web UI to shut down this machine."
+echo

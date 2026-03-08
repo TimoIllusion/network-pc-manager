@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WOL Proxy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --bg: #111827;
+            --card: #1f2937;
+            --border: #374151;
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: var(--text);
+        }
+
+        .container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 12px;
+            padding: 36px;
+            max-width: 460px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 28px;
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .select-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .select-row select {
+            flex: 1;
+        }
+
+        .btn-icon {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .btn-icon:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .btn-icon.spinning svg {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        select, input {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--primary);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .status-dot.online { background: var(--success); }
+        .status-dot.offline { background: var(--danger); }
+        .status-dot.checking { background: var(--muted); animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.15s;
+        }
+
+        .btn:hover { opacity: 0.88; }
+        .btn:active { opacity: 0.75; }
+        .btn-wake { background: var(--primary); }
+        .btn-shutdown { background: var(--danger); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .modal-title {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .modal-desc {
+            color: var(--muted);
+            margin-bottom: 22px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-modal {
+            flex: 1;
+            padding: 11px;
+            font-size: 14px;
+        }
+
+        .btn-cancel { background: var(--border); }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 1000;
+            transition: transform 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .toast.active { transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: var(--danger); color: #fca5a5; }
+        .toast.success { border-color: var(--success); color: #86efac; }
+
+        @media (max-width: 480px) {
+            .container { padding: 24px 18px; }
+            h1 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PC Control Panel</h1>
+        <p class="subtitle">Wake-on-LAN &amp; Remote Shutdown</p>
+
+        <span class="label">Device</span>
+        <div class="select-row">
+            <select id="device-select" onchange="onDeviceChange()">
+                <option value="custom">Custom...</option>
+                {% for device in devices %}
+                <option value="{{ device.mac }}" data-ip="{{ device.ip }}" data-name="{{ device.name }}">
+                    {{ device.name }} ({{ device.mac }})
+                </option>
+                {% endfor %}
+            </select>
+            <button class="btn-icon" id="rescan-btn" onclick="rescanNetwork()" title="Rescan network">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M23 20v-6h-6"></path><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+            </button>
+        </div>
+
+        <div class="input-group">
+            <div>
+                <span class="label">MAC Address</span>
+                <input type="text" id="mac-input" placeholder="00:00:00:00:00:00">
+            </div>
+            <div>
+                <span class="label">IP Address</span>
+                <input type="text" id="ip-input" placeholder="192.168.1.100">
+            </div>
+            <div>
+                <span class="label">Agent Port</span>
+                <input type="text" id="port-input" value="{{ default_agent_port }}" placeholder="9876">
+            </div>
+            <div>
+                <span class="label">
+                    Agent Passphrase
+                    <span id="agent-status"></span>
+                </span>
+                <input type="password" id="passphrase-input" placeholder="shared secret">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-wake" onclick="openModal('wake')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                Wake System
+            </button>
+            <button class="btn btn-shutdown" onclick="openModal('shutdown')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
+                Remote Shutdown
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-title" id="modal-title">Confirm Action</div>
+            <div class="modal-desc" id="modal-desc">Are you sure?</div>
+            <div class="modal-buttons">
+                <button class="btn btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-modal" id="modal-confirm-btn" onclick="executeAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast">
+        <span id="toast-icon"></span>
+        <span id="toast-text"></span>
+    </div>
+
+    <script>
+        let currentAction = null;
+        let devices = [
+            {% for device in devices %}
+            { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}" },
+            {% endfor %}
+        ];
+
+        window.onload = () => {
+            if (devices.length > 0) {
+                document.getElementById('device-select').value = devices[0].mac;
+                onDeviceChange();
+            }
+        };
+
+        function onDeviceChange() {
+            const select = document.getElementById('device-select');
+            if (select.value === 'custom') {
+                document.getElementById('mac-input').focus();
+            } else {
+                const device = devices.find(d => d.mac === select.value);
+                if (device) {
+                    document.getElementById('mac-input').value = device.mac;
+                    document.getElementById('ip-input').value = device.ip;
+                    checkAgentHealth();
+                }
+            }
+        }
+
+        function rescanNetwork() {
+            const btn = document.getElementById('rescan-btn');
+            btn.classList.add('spinning');
+
+            fetch('/scan')
+                .then(r => r.json())
+                .then(data => {
+                    devices = data;
+                    const select = document.getElementById('device-select');
+                    // Remove all options except "Custom..."
+                    while (select.options.length > 1) select.remove(1);
+                    // Add new devices
+                    data.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.mac;
+                        opt.dataset.ip = d.ip;
+                        opt.dataset.name = d.name;
+                        opt.textContent = `${d.name} (${d.mac})`;
+                        select.appendChild(opt);
+                    });
+                    if (data.length > 0) {
+                        select.value = data[0].mac;
+                        onDeviceChange();
+                    }
+                    showToast(`Found ${data.length} device(s)`, 'success');
+                })
+                .catch(e => showToast('Network scan failed', 'error'))
+                .finally(() => btn.classList.remove('spinning'));
+        }
+
+        function checkAgentHealth() {
+            const ip = document.getElementById('ip-input').value.trim();
+            const port = document.getElementById('port-input').value.trim();
+            const statusEl = document.getElementById('agent-status');
+
+            if (!ip || !port) return;
+
+            statusEl.innerHTML = '<span class="status-dot checking"></span>';
+            fetch(`/health-check?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        statusEl.innerHTML = `<span class="status-dot online" title="${data.hostname} - online"></span>`;
+                    } else {
+                        statusEl.innerHTML = '<span class="status-dot offline" title="Agent unreachable"></span>';
+                    }
+                })
+                .catch(() => {
+                    statusEl.innerHTML = '<span class="status-dot offline" title="Agent unreachable"></span>';
+                });
+        }
+
+        document.getElementById('ip-input').addEventListener('change', checkAgentHealth);
+        document.getElementById('port-input').addEventListener('change', checkAgentHealth);
+
+        function showToast(text, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').textContent = text;
+            document.getElementById('toast-icon').textContent = type === 'success' ? '\u2713' : '\u2715';
+            toast.className = `toast active ${type}`;
+            setTimeout(() => toast.classList.remove('active'), 5000);
+        }
+
+        function openModal(action) {
+            currentAction = action;
+            const title = document.getElementById('modal-title');
+            const desc = document.getElementById('modal-desc');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+
+            if (action === 'wake') {
+                title.textContent = 'Wake System';
+                desc.textContent = `Send Magic Packet to ${document.getElementById('mac-input').value}?`;
+                confirmBtn.className = 'btn btn-modal btn-wake';
+                confirmBtn.textContent = 'Wake';
+            } else {
+                const ip = document.getElementById('ip-input').value;
+                title.textContent = 'Remote Shutdown';
+                desc.textContent = `Send shutdown command to ${ip} via agent?`;
+                confirmBtn.className = 'btn btn-modal btn-shutdown';
+                confirmBtn.textContent = 'Shutdown';
+            }
+
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal(e) {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function executeAction() {
+            const action = currentAction;
+            closeModal();
+
+            const mac = document.getElementById('mac-input').value.trim();
+            const ip = document.getElementById('ip-input').value.trim();
+
+            if (action === 'wake') {
+                if (!mac) return showToast('MAC address required', 'error');
+                fetch(`/wake?mac=${encodeURIComponent(mac)}`)
+                    .then(r => r.text().then(t => ({ t, ok: r.ok })))
+                    .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
+                    .catch(e => showToast(e.message, 'error'));
+            } else {
+                const port = document.getElementById('port-input').value.trim();
+                const passphrase = document.getElementById('passphrase-input').value;
+                if (!ip || !passphrase) return showToast('IP and passphrase required', 'error');
+                showToast('Sending shutdown command...', 'success');
+                fetch(`/shutdown?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`)
+                    .then(r => r.text().then(t => ({ t, ok: r.ok })))
+                    .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
+                    .catch(e => showToast(e.message, 'error'));
+            }
+        }
+    </script>
+</body>
+</html>
