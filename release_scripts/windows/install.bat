@@ -45,6 +45,11 @@ if "!PASSPHRASE!"=="" (
 set /p PORT="Enter port [9876]: "
 if "%PORT%"=="" set PORT=9876
 
+REM ─── Stop any running agent (needed before overwriting the exe) ─────────────
+echo [INFO] Stopping any running agent instance...
+taskkill /im shutdown_agent.exe /f >nul 2>nul
+timeout /t 1 /nobreak >nul 2>nul
+
 REM ─── Install to Program Files ───────────────────────────────────────────────
 set "INSTALL_DIR=%ProgramFiles%\NetworkPCManager"
 
@@ -75,21 +80,21 @@ if %ERRORLEVEL% neq 0 (
 )
 
 REM ─── Create Scheduled Task ─────────────────────────────────────────────────
-echo [INFO] Creating scheduled task for auto-start ...
+echo [INFO] Creating scheduled task for auto-start at system startup...
 set "TASK_NAME=NetworkPCManager-ShutdownAgent"
 
 schtasks /delete /tn "%TASK_NAME%" /f >nul 2>nul
 
 schtasks /create /tn "%TASK_NAME%" ^
     /tr "\"%INSTALL_DIR%\shutdown_agent.exe\" --port %PORT%" ^
-    /sc onlogon /rl highest /f >nul 2>nul
+    /sc onstart /ru SYSTEM /f >nul 2>nul
 
 if %ERRORLEVEL% neq 0 (
     echo [WARN] Could not create scheduled task.
     echo [WARN] You can start the agent manually:
     echo        "%INSTALL_DIR%\shutdown_agent.exe" --passphrase "YOUR_PASSPHRASE" --port %PORT%
 ) else (
-    echo [INFO] Scheduled task "%TASK_NAME%" created (runs at logon).
+    echo [INFO] Scheduled task "%TASK_NAME%" created (runs at system startup).
 )
 
 REM ─── Start the agent now ────────────────────────────────────────────────────
@@ -103,7 +108,7 @@ echo ======================================================
 echo.
 echo   Agent installed to: %INSTALL_DIR%
 echo   Agent running on port: %PORT%
-echo   Starts automatically at logon.
+echo   Starts automatically at system startup (no login required).
 echo.
 echo   Test with:
 echo     curl -s http://localhost:%PORT%/health

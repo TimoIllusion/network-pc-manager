@@ -26,17 +26,19 @@ REM ─── Stop running agent ───────────────�
 echo [INFO] Stopping running agent...
 taskkill /im shutdown_agent.exe /f >nul 2>nul
 
-REM ─── Remove scheduled task ──────────────────────────────────────────────────
+REM ─── Remove scheduled task (current and legacy names) ──────────────────────
 echo [INFO] Removing scheduled task...
 schtasks /delete /tn "%TASK_NAME%" /f >nul 2>nul
+schtasks /delete /tn "WOL-Shutdown-Agent" /f >nul 2>nul
 
 REM ─── Remove firewall rule ───────────────────────────────────────────────────
 echo [INFO] Removing firewall rule...
 netsh advfirewall firewall delete rule name="NetworkPCManager-ShutdownAgent" >nul 2>nul
 
-REM ─── Remove environment variable ────────────────────────────────────────────
-echo [INFO] Removing environment variable...
+REM ─── Remove environment variables (current and legacy names) ────────────────
+echo [INFO] Removing environment variables...
 reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v NETWORK_PC_MANAGER_AGENT_PASSPHRASE /f >nul 2>nul
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v WOL_AGENT_PASSPHRASE /f >nul 2>nul
 
 REM ─── Remove installed files ─────────────────────────────────────────────────
 echo [INFO] Removing installed files...
