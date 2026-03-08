@@ -264,8 +264,8 @@
             <select id="device-select" onchange="onDeviceChange()">
                 <option value="custom">Custom...</option>
                 {% for device in devices %}
-                <option value="{{ device.mac }}" data-ip="{{ device.ip }}" data-name="{{ device.name }}">
-                    {{ device.name }} ({{ device.mac }})
+                <option value="{{ device.mac }}" data-ip="{{ device.ip }}" data-name="{{ device.name }}" data-online="{{ 'true' if device.online else 'false' }}">
+                    {{ device.name }} ({{ device.mac }}){% if not device.online %} — offline{% endif %}
                 </option>
                 {% endfor %}
             </select>
@@ -330,7 +330,7 @@
         let currentAction = null;
         let devices = [
             {% for device in devices %}
-            { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}" },
+            { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}", online: {{ 'true' if device.online else 'false' }} },
             {% endfor %}
         ];
 
@@ -345,14 +345,22 @@
             const select = document.getElementById('device-select');
             if (select.value === 'custom') {
                 document.getElementById('mac-input').focus();
+                setShutdownEnabled(true);
             } else {
                 const device = devices.find(d => d.mac === select.value);
                 if (device) {
                     document.getElementById('mac-input').value = device.mac;
                     document.getElementById('ip-input').value = device.ip;
-                    checkAgentHealth();
+                    setShutdownEnabled(device.online);
+                    if (device.online) checkAgentHealth();
+                    else document.getElementById('agent-status').innerHTML =
+                        '<span class="status-dot offline" title="Device offline"></span>';
                 }
             }
+        }
+
+        function setShutdownEnabled(enabled) {
+            document.querySelector('.btn-shutdown').disabled = !enabled;
         }
 
         function rescanNetwork() {
@@ -366,20 +374,22 @@
                     const select = document.getElementById('device-select');
                     // Remove all options except "Custom..."
                     while (select.options.length > 1) select.remove(1);
-                    // Add new devices
+                    // Add new devices (online first, then offline)
                     data.forEach(d => {
                         const opt = document.createElement('option');
                         opt.value = d.mac;
                         opt.dataset.ip = d.ip;
                         opt.dataset.name = d.name;
-                        opt.textContent = `${d.name} (${d.mac})`;
+                        opt.dataset.online = d.online ? 'true' : 'false';
+                        opt.textContent = d.online ? `${d.name} (${d.mac})` : `${d.name} (${d.mac}) — offline`;
                         select.appendChild(opt);
                     });
                     if (data.length > 0) {
                         select.value = data[0].mac;
                         onDeviceChange();
                     }
-                    showToast(`Found ${data.length} device(s)`, 'success');
+                    const onlineCount = data.filter(d => d.online).length;
+                    showToast(`Found ${onlineCount} online, ${data.length - onlineCount} offline`, 'success');
                 })
                 .catch(e => showToast('Network scan failed', 'error'))
                 .finally(() => btn.classList.remove('spinning'));

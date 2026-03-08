@@ -6,6 +6,7 @@ import urllib.request
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
+from registry import merge_scan
 from scan import scan_network
 
 DEFAULT_AGENT_PORT = int(os.environ.get("NETWORK_PC_MANAGER_AGENT_PORT", "9876"))
@@ -15,7 +16,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    devices = scan_network()
+    devices = merge_scan(scan_network())
     return render_template(
         "index.html",
         devices=devices,
@@ -26,7 +27,7 @@ def index():
 @app.route("/scan")
 def scan():
     """Re-scan the network and return the device list as JSON."""
-    return jsonify(scan_network())
+    return jsonify(merge_scan(scan_network()))
 
 
 @app.route("/wake", methods=["GET"])

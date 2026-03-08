@@ -10,6 +10,9 @@ build/
 dist/
 *.spec
 
+# Runtime data
+devices.json
+
 # OS
 .DS_Store
 Thumbs.db
