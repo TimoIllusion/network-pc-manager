@@ -48,19 +48,30 @@ Set these in the systemd service file at `/etc/systemd/system/network-pc-manager
 
 The agent is needed only if you want to **shut down** machines remotely. Waking up machines works without it (just enable WOL in BIOS).
 
+### Windows (Recommended: standalone release)
+
+The easiest way — **no Python required**:
+
+1. Download the latest `NetworkPCManager-ShutdownAgent-win-x64.zip` from [Releases](https://github.com/TimoIllusion/network-pc-manager/releases)
+2. Extract the zip
+3. Right-click `install.bat` → **Run as administrator**
+4. Enter a passphrase and port when prompted
+
+The installer copies the agent to `C:\Program Files\NetworkPCManager`, creates a scheduled task for auto-start, and adds a firewall rule. To remove it, run `uninstall.bat` as administrator.
+
+### Windows (From source)
+
+1. Install [Python](https://www.python.org/downloads/) if not already installed
+2. Clone or download this repo
+3. Run `setup_agent.bat` as Administrator
+
 ### Linux / macOS
 
 ```bash
 git clone https://github.com/TimoIllusion/network-pc-manager.git && cd network-pc-manager && bash setup_agent.sh
 ```
 
-### Windows
-
-1. Install [Python](https://www.python.org/downloads/) if not already installed
-2. Clone or download this repo
-3. Run `setup_agent.bat` as Administrator
-
-Both scripts prompt for a passphrase (min 8 characters) and set up the agent as a system service that starts on boot.
+All setup methods prompt for a passphrase (min 8 characters) and set up the agent as a system service that starts on boot.
 
 ---
 
@@ -89,6 +100,26 @@ curl "http://<pi-ip>:1337/wake?mac=AA:BB:CC:DD:EE:FF"
 
 # Shut down via agent
 curl "http://<pi-ip>:1337/shutdown?ip=192.168.1.50&port=9876&passphrase=my-secret"
+```
+
+---
+
+## Building Release Packages
+
+To build a standalone release package locally:
+
+```bash
+pip install pyinstaller
+python build_agent.py
+```
+
+This produces `dist/NetworkPCManager-ShutdownAgent-win-x64.zip` containing the bundled executable, installer, and uninstaller.
+
+Releases are also built automatically by GitHub Actions when you push a version tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ---
