@@ -10,7 +10,7 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 # ─── Config ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/.env"
-SERVICE_NAME="wol-proxy"
+SERVICE_NAME="network-pc-manager"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # ─── 1. System dependencies ───────────────────────────────────────────────────
@@ -58,7 +58,7 @@ info "Setting up systemd service..."
 
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
-Description=WOL Proxy – Wake-on-LAN & Remote Shutdown
+Description=Network PC Manager – Wake-on-LAN & Remote Shutdown
 After=network-online.target
 Wants=network-online.target
 
