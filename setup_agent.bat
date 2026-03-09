@@ -30,7 +30,8 @@ echo [INFO] Using: %PYTHON_CMD%
 
 REM ─── Get script directory ──────────────────────────────────────────────────
 set "SCRIPT_DIR=%~dp0"
-set "AGENT_SCRIPT=%SCRIPT_DIR%shutdown_agent.py"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
+set "AGENT_SCRIPT=%SCRIPT_DIR%\shutdown_agent.py"
 
 if not exist "%AGENT_SCRIPT%" (
     echo [ERROR] shutdown_agent.py not found in %SCRIPT_DIR%
