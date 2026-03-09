@@ -97,7 +97,17 @@ def create_zip():
             for fname in os.listdir(scripts_dir):
                 fpath = os.path.join(scripts_dir, fname)
                 if os.path.isfile(fpath):
-                    zf.write(fpath, fname)
+                    # Ensure .bat files have CRLF line endings (required by cmd.exe)
+                    if fname.lower().endswith(".bat"):
+                        with open(fpath, "rb") as f:
+                            content = f.read()
+                        # Normalize to LF first, then convert to CRLF
+                        content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                        info = zipfile.ZipInfo(fname)
+                        info.compress_type = zipfile.ZIP_DEFLATED
+                        zf.writestr(info, content)
+                    else:
+                        zf.write(fpath, fname)
 
     print(f"  -> {zip_path}  ({os.path.getsize(zip_path) / 1024 / 1024:.1f} MB)")
     return zip_path

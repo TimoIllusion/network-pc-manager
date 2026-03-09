@@ -13,14 +13,15 @@ REM ─── Auto-elevate if not running as admin ─────────�
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo Requesting administrator privileges...
-    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WorkingDirectory '%~dp0.'"
     exit /b
 )
 cd /d "%~dp0"
 
 REM ─── Verify exe exists next to this script ──────────────────────────────────
 set "SCRIPT_DIR=%~dp0"
-set "EXE_SRC=%SCRIPT_DIR%shutdown_agent.exe"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
+set "EXE_SRC=%SCRIPT_DIR%\shutdown_agent.exe"
 
 if not exist "%EXE_SRC%" (
     echo [ERROR] shutdown_agent.exe not found in %SCRIPT_DIR%
