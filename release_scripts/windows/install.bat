@@ -13,10 +13,19 @@ REM ─── Auto-elevate if not running as admin ─────────�
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo Requesting administrator privileges...
-    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WorkingDirectory '%~dp0.'"
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%TEMP%\npm_elevate.vbs"
+    echo UAC.ShellExecute "%~f0", "", "%~dp0", "runas", 1 >> "%TEMP%\npm_elevate.vbs"
+    cscript //nologo "%TEMP%\npm_elevate.vbs"
+    del "%TEMP%\npm_elevate.vbs" >nul 2>nul
     exit /b
 )
-cd /d "%~dp0"
+
+REM ─── Ensure working directory is the script's directory ────────────────────
+pushd "%~dp0" || (
+    echo [ERROR] Cannot access script directory: %~dp0
+    pause
+    exit /b 1
+)
 
 REM ─── Verify exe exists next to this script ──────────────────────────────────
 set "SCRIPT_DIR=%~dp0"

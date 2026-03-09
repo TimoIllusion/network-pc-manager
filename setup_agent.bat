@@ -11,6 +11,24 @@ echo   Network PC Manager - Shutdown Agent Setup (Windows)
 echo ======================================================
 echo.
 
+REM ─── Auto-elevate if not running as admin ──────────────────────────────────
+net session >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo Requesting administrator privileges...
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%TEMP%\npm_elevate.vbs"
+    echo UAC.ShellExecute "%~f0", "", "%~dp0", "runas", 1 >> "%TEMP%\npm_elevate.vbs"
+    cscript //nologo "%TEMP%\npm_elevate.vbs"
+    del "%TEMP%\npm_elevate.vbs" >nul 2>nul
+    exit /b
+)
+
+REM ─── Ensure working directory is the script's directory ────────────────────
+pushd "%~dp0" || (
+    echo [ERROR] Cannot access script directory: %~dp0
+    pause
+    exit /b 1
+)
+
 REM ─── Check Python ──────────────────────────────────────────────────────────
 where python >nul 2>nul
 if %ERRORLEVEL% neq 0 (
