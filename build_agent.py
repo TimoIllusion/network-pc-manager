@@ -4,8 +4,10 @@ Build script for the Network PC Manager Shutdown Agent release package.
 
 Creates a standalone zip containing:
   - shutdown_agent.exe  (PyInstaller one-file bundle, no Python needed)
-  - install.bat         (interactive installer: passphrase, port, firewall, scheduled task)
-  - uninstall.bat       (removes everything cleanly)
+  - install.bat         (thin launcher — calls install.ps1 as Administrator)
+  - install.ps1         (interactive installer: passphrase, port, firewall, scheduled task)
+  - uninstall.bat       (thin launcher — calls uninstall.ps1 as Administrator)
+  - uninstall.ps1       (removes everything cleanly)
   - README.txt          (quick-start instructions)
 
 Usage:
@@ -97,8 +99,8 @@ def create_zip():
             for fname in os.listdir(scripts_dir):
                 fpath = os.path.join(scripts_dir, fname)
                 if os.path.isfile(fpath):
-                    # Ensure .bat files have CRLF line endings (required by cmd.exe)
-                    if fname.lower().endswith(".bat"):
+                    # Ensure .bat and .ps1 files have CRLF line endings (required on Windows)
+                    if fname.lower().endswith((".bat", ".ps1")):
                         with open(fpath, "rb") as f:
                             content = f.read()
                         # Normalize to LF first, then convert to CRLF
