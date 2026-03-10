@@ -169,5 +169,6 @@ Write-Host "  Test: http://localhost:$Port/health"
 Write-Host ''
 Write-Host '  To uninstall, run uninstall.bat as Administrator.'
 Write-Host ''
-Write-Host "  Log file: $LogFile"
+Write-Host "  Install log: $LogFile"
+Write-Host "  Agent log  : $env:ProgramData\NetworkPCManager\shutdown_agent.log"
 Write-Host ''

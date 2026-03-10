@@ -161,5 +161,6 @@ Write-Host '  Auto-starts at system startup (no login required).'
 Write-Host ''
 Write-Host "  Test: http://localhost:$Port/health"
 Write-Host ''
-Write-Host "  Log file: $LogFile"
+Write-Host "  Setup log : $LogFile"
+Write-Host "  Agent log : $env:ProgramData\NetworkPCManager\shutdown_agent.log"
 Write-Host ''
