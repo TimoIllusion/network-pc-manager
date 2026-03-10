@@ -86,11 +86,15 @@ Write-Log '[INFO] Found shutdown_agent.py - OK'
 
 # ── Prompt ────────────────────────────────────────────────────────────────────
 Write-Host ''
-$Passphrase = Read-Host 'Enter passphrase (min 8 characters)'
-if ($Passphrase.Length -lt 8) {
-    Write-Log '[ERROR] Passphrase too short (< 8 characters).'
-    Write-Host '[ERROR] Passphrase must be at least 8 characters.' -ForegroundColor Red
+$Passphrase = Read-Host 'Enter passphrase (min 8 characters recommended)'
+if ($Passphrase.Length -eq 0) {
+    Write-Log '[ERROR] Passphrase must not be empty.'
+    Write-Host '[ERROR] Passphrase must not be empty.' -ForegroundColor Red
     exit 1
+}
+if ($Passphrase.Length -lt 8) {
+    Write-Log '[WARN] Passphrase is shorter than 8 characters. Consider using a stronger passphrase.'
+    Write-Host '[WARN] Passphrase is shorter than 8 characters. Consider using a stronger passphrase.' -ForegroundColor Yellow
 }
 Write-Log '[INFO] Passphrase provided - OK'
 
@@ -142,7 +146,7 @@ try {
 # ── Start agent now ───────────────────────────────────────────────────────────
 Write-Log '[INFO] Starting agent...'
 try {
-    Start-Process -FilePath $PythonCmd -ArgumentList "`"$AgentScript`" --port $Port" -WindowStyle Minimized
+    Start-Process -FilePath $PythonCmd -ArgumentList "`"$AgentScript`" --port $Port --passphrase `"$Passphrase`"" -WindowStyle Minimized
     Write-Log '[INFO] Agent started.'
     Write-Host '[INFO] Agent started.'
 } catch {

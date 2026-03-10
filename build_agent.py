@@ -68,20 +68,26 @@ def create_zip():
     """Package the exe and helper scripts into a release zip."""
     print("[2/3] Creating release zip...")
 
+    version = os.environ.get("VERSION", "").strip()
+    version_suffix = f"-{version}" if version else ""
+
     system = platform.system().lower()
     if system == "windows":
         arch = "x64" if platform.machine().endswith("64") else "x86"
-        zip_name = f"{PACKAGE_NAME}-win-{arch}.zip"
+        zip_name = f"{PACKAGE_NAME}-win-{arch}{version_suffix}.zip"
         exe_name = "shutdown_agent.exe"
     elif system == "linux":
-        zip_name = f"{PACKAGE_NAME}-linux-x64.zip"
+        zip_name = f"{PACKAGE_NAME}-linux-x64{version_suffix}.zip"
         exe_name = "shutdown_agent"
     elif system == "darwin":
-        zip_name = f"{PACKAGE_NAME}-macos-x64.zip"
+        zip_name = f"{PACKAGE_NAME}-macos-x64{version_suffix}.zip"
         exe_name = "shutdown_agent"
     else:
-        zip_name = f"{PACKAGE_NAME}-{system}.zip"
+        zip_name = f"{PACKAGE_NAME}-{system}{version_suffix}.zip"
         exe_name = "shutdown_agent"
+
+    # Files inside the zip are placed under a versioned directory
+    inner_dir = f"{PACKAGE_NAME}{version_suffix}"
 
     zip_path = os.path.join(DIST_DIR, zip_name)
     exe_path = os.path.join(DIST_DIR, "exe", exe_name)
@@ -91,7 +97,7 @@ def create_zip():
         sys.exit(1)
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(exe_path, exe_name)
+        zf.write(exe_path, os.path.join(inner_dir, exe_name))
 
         # Include helper scripts for Windows
         scripts_dir = os.path.join("release_scripts", "windows")
@@ -99,17 +105,18 @@ def create_zip():
             for fname in os.listdir(scripts_dir):
                 fpath = os.path.join(scripts_dir, fname)
                 if os.path.isfile(fpath):
+                    arcname = os.path.join(inner_dir, fname)
                     # Ensure .bat and .ps1 files have CRLF line endings (required on Windows)
                     if fname.lower().endswith((".bat", ".ps1")):
                         with open(fpath, "rb") as f:
                             content = f.read()
                         # Normalize to LF first, then convert to CRLF
                         content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-                        info = zipfile.ZipInfo(fname)
+                        info = zipfile.ZipInfo(arcname)
                         info.compress_type = zipfile.ZIP_DEFLATED
                         zf.writestr(info, content)
                     else:
-                        zf.write(fpath, fname)
+                        zf.write(fpath, arcname)
 
     print(f"  -> {zip_path}  ({os.path.getsize(zip_path) / 1024 / 1024:.1f} MB)")
     return zip_path

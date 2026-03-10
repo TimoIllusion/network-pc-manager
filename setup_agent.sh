@@ -23,8 +23,11 @@ echo -e "${CYAN}║   Network PC Manager - Shutdown Agent Setup  ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
 echo
 
-read -rp "Enter passphrase (min 8 characters): " PASSPHRASE
-[ ${#PASSPHRASE} -ge 8 ] || error "Passphrase must be at least 8 characters."
+read -rp "Enter passphrase (min 8 characters recommended): " PASSPHRASE
+[ -n "$PASSPHRASE" ] || error "Passphrase must not be empty."
+if [ ${#PASSPHRASE} -lt 8 ]; then
+    warn "Passphrase is shorter than 8 characters. Consider using a stronger passphrase."
+fi
 
 read -rp "Enter port [9876]: " PORT
 PORT="${PORT:-9876}"
