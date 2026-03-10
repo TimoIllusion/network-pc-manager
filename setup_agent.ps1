@@ -142,7 +142,7 @@ try {
 # ── Start agent now ───────────────────────────────────────────────────────────
 Write-Log '[INFO] Starting agent...'
 try {
-    Start-Process -FilePath $PythonCmd -ArgumentList "`"$AgentScript`" --port $Port" -WindowStyle Minimized
+    Start-Process -FilePath $PythonCmd -ArgumentList "`"$AgentScript`" --port $Port --passphrase `"$Passphrase`"" -WindowStyle Minimized
     Write-Log '[INFO] Agent started.'
     Write-Host '[INFO] Agent started.'
 } catch {

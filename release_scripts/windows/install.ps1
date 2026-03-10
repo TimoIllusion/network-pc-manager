@@ -147,7 +147,7 @@ try {
 # ── Start agent now ───────────────────────────────────────────────────────────
 Write-Log '[INFO] Starting agent...'
 try {
-    Start-Process -FilePath "$InstallDir\shutdown_agent.exe" -ArgumentList "--port $Port" -WindowStyle Minimized
+    Start-Process -FilePath "$InstallDir\shutdown_agent.exe" -ArgumentList "--port $Port --passphrase `"$Passphrase`"" -WindowStyle Minimized
     Write-Log '[INFO] Agent started.'
     Write-Host '[INFO] Agent started.'
 } catch {
