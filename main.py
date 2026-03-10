@@ -74,6 +74,41 @@ def shutdown():
         return f"Could not reach shutdown agent on {ip_address}:{port}: {e}", 500
 
 
+@app.route("/restart", methods=["GET"])
+def restart():
+    """Send restart request to the remote shutdown agent via HTTP API."""
+    ip_address = request.args.get("ip", "")
+    port = request.args.get("port", str(DEFAULT_AGENT_PORT))
+    passphrase = request.args.get("passphrase", "")
+
+    if not ip_address:
+        return "IP address is required", 400
+    if not passphrase:
+        return "Passphrase is required", 400
+
+    url = f"http://{ip_address}:{port}/restart"
+    headers = {
+        "Authorization": f"Bearer {passphrase}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            msg = body.get("message", "Restart accepted")
+            return f"Restart: {msg}", 200
+    except urllib.error.HTTPError as e:
+        try:
+            body = json.loads(e.read().decode("utf-8"))
+            detail = body.get("error", str(e))
+        except Exception:
+            detail = str(e)
+        return f"Restart failed on {ip_address}: {detail}", e.code
+    except Exception as e:
+        return f"Could not reach shutdown agent on {ip_address}:{port}: {e}", 500
+
+
 @app.route("/health-check", methods=["GET"])
 def health_check():
     """Check if a remote shutdown agent is reachable."""

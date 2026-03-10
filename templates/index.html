@@ -10,6 +10,7 @@
             --primary: #6366f1;
             --success: #16a34a;
             --danger: #dc2626;
+            --warning: #d97706;
             --bg: #111827;
             --card: #1f2937;
             --border: #374151;
@@ -170,6 +171,7 @@
         .btn:active { opacity: 0.75; }
         .btn-wake { background: var(--primary); }
         .btn-shutdown { background: var(--danger); }
+        .btn-restart { background: var(--warning); }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* Modal */
@@ -257,7 +259,7 @@
 <body>
     <div class="container">
         <h1>PC Control Panel</h1>
-        <p class="subtitle">Wake-on-LAN &amp; Remote Shutdown</p>
+        <p class="subtitle">Wake-on-LAN, Remote Shutdown &amp; Restart</p>
 
         <span class="label">Device</span>
         <div class="select-row">
@@ -304,6 +306,10 @@
             <button class="btn btn-shutdown" onclick="openModal('shutdown')">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>
                 Remote Shutdown
+            </button>
+            <button class="btn btn-restart" onclick="openModal('restart')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 .49-4.95"></path></svg>
+                Restart System
             </button>
         </div>
     </div>
@@ -361,6 +367,7 @@
 
         function setShutdownEnabled(enabled) {
             document.querySelector('.btn-shutdown').disabled = !enabled;
+            document.querySelector('.btn-restart').disabled = !enabled;
         }
 
         function rescanNetwork() {
@@ -439,12 +446,18 @@
                 desc.textContent = `Send Magic Packet to ${document.getElementById('mac-input').value}?`;
                 confirmBtn.className = 'btn btn-modal btn-wake';
                 confirmBtn.textContent = 'Wake';
-            } else {
+            } else if (action === 'shutdown') {
                 const ip = document.getElementById('ip-input').value;
                 title.textContent = 'Remote Shutdown';
                 desc.textContent = `Send shutdown command to ${ip} via agent?`;
                 confirmBtn.className = 'btn btn-modal btn-shutdown';
                 confirmBtn.textContent = 'Shutdown';
+            } else {
+                const ip = document.getElementById('ip-input').value;
+                title.textContent = 'Restart System';
+                desc.textContent = `Send restart command to ${ip} via agent?`;
+                confirmBtn.className = 'btn btn-modal btn-restart';
+                confirmBtn.textContent = 'Restart';
             }
 
             document.getElementById('modal').classList.add('active');
@@ -471,8 +484,9 @@
                 const port = document.getElementById('port-input').value.trim();
                 const passphrase = document.getElementById('passphrase-input').value;
                 if (!ip || !passphrase) return showToast('IP and passphrase required', 'error');
-                showToast('Sending shutdown command...', 'success');
-                fetch(`/shutdown?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`)
+                const endpoint = action === 'restart' ? 'restart' : 'shutdown';
+                showToast(`Sending ${endpoint} command...`, 'success');
+                fetch(`/${endpoint}?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`)
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
                     .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
                     .catch(e => showToast(e.message, 'error'));

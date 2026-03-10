@@ -45,6 +45,17 @@ def get_shutdown_command():
         return ["sudo", "shutdown", "-h", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
 
 
+def get_restart_command():
+    """Return the appropriate restart command for the current OS."""
+    system = platform.system().lower()
+    if system == "windows":
+        return ["shutdown", "/r", "/t", str(SHUTDOWN_DELAY_SECONDS)]
+    elif system == "darwin":
+        return ["sudo", "shutdown", "-r", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
+    else:  # Linux and others
+        return ["sudo", "shutdown", "-r", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
+
+
 def constant_time_compare(a: str, b: str) -> bool:
     """Compare two strings in constant time to prevent timing attacks."""
     return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
@@ -120,6 +131,29 @@ class ShutdownHandler(BaseHTTPRequestHandler):
                     subprocess.Popen(cmd)
             except Exception as e:
                 self.log_message("Shutdown command failed: %s", str(e))
+        elif self.path == "/restart":
+            if not self._check_auth():
+                return
+            cmd = get_restart_command()
+            system_name = platform.system()
+            hostname = platform.node()
+            self._send_json(
+                200,
+                {
+                    "status": "accepted",
+                    "message": f"Restart initiated on {hostname} ({system_name})",
+                    "command": " ".join(cmd),
+                    "delay_seconds": SHUTDOWN_DELAY_SECONDS,
+                },
+            )
+            self.log_message("Restart accepted - executing: %s", " ".join(cmd))
+            try:
+                if system_name.lower() == "windows":
+                    subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                    subprocess.Popen(cmd)
+            except Exception as e:
+                self.log_message("Restart command failed: %s", str(e))
         else:
             self._send_json(404, {"error": "Not found"})
 
@@ -178,6 +212,7 @@ Environment variables:
     print(f"  Endpoints:")
     print(f"    GET  /health   - Health check (no auth required)")
     print(f"    POST /shutdown - Initiate shutdown (auth required)")
+    print(f"    POST /restart  - Initiate restart (auth required)")
     print()
 
     try:
