@@ -21,6 +21,8 @@ import argparse
 import hashlib
 import hmac
 import json
+import logging
+import logging.handlers
 import os
 import platform
 import subprocess
@@ -32,6 +34,45 @@ from version import __version__
 
 DEFAULT_PORT = 9876
 SHUTDOWN_DELAY_SECONDS = 3
+
+
+def get_default_log_path():
+    """Return a platform-appropriate default log file path."""
+    if platform.system().lower() == "windows":
+        base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        return os.path.join(base, "NetworkPCManager", "shutdown_agent.log")
+    return "/var/log/network-pc-manager-agent.log"
+
+
+def setup_logging(log_file):
+    """Configure logging to write to both stderr and a rotating file."""
+    logger = logging.getLogger("shutdown_agent")
+    logger.setLevel(logging.INFO)
+
+    fmt = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+    # File handler with rotation (5 MB max, keep 3 backups)
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except OSError:
+            pass
+    try:
+        fh = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        fh.setFormatter(fmt)
+        logger.addHandler(fh)
+    except OSError as e:
+        print(f"WARNING: Could not open log file {log_file!r}: {e}", file=sys.stderr)
+
+    # Always also log to stderr
+    sh = logging.StreamHandler(sys.stderr)
+    sh.setFormatter(fmt)
+    logger.addHandler(sh)
+
+    return logger
 
 
 def get_shutdown_command():
@@ -67,9 +108,9 @@ class ShutdownHandler(BaseHTTPRequestHandler):
     passphrase = ""
 
     def log_message(self, format, *args):
-        """Override to add timestamps to log messages."""
-        sys.stderr.write(
-            f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {self.client_address[0]} - {format % args}\n"
+        """Override to route HTTP request logs through the logging module."""
+        logging.getLogger("shutdown_agent").info(
+            "%s - %s", self.client_address[0], format % args
         )
 
     def _send_json(self, status_code, data):
@@ -188,6 +229,11 @@ Environment variables:
         default="0.0.0.0",
         help="Address to bind to (default: 0.0.0.0)",
     )
+    parser.add_argument(
+        "--log-file",
+        default=get_default_log_path(),
+        help=f"Path to log file (default: {get_default_log_path()})",
+    )
     args = parser.parse_args()
 
     if not args.passphrase:
@@ -202,18 +248,17 @@ Environment variables:
             file=sys.stderr,
         )
 
+    logger = setup_logging(args.log_file)
+
     ShutdownHandler.passphrase = args.passphrase
 
     server = HTTPServer((args.bind, args.port), ShutdownHandler)
-    print(f"Network PC Manager Shutdown Agent {__version__}")
-    print(f"  Hostname : {platform.node()}")
-    print(f"  System   : {platform.system()} {platform.release()}")
-    print(f"  Listening: http://{args.bind}:{args.port}")
-    print(f"  Endpoints:")
-    print(f"    GET  /health   - Health check (no auth required)")
-    print(f"    POST /shutdown - Initiate shutdown (auth required)")
-    print(f"    POST /restart  - Initiate restart (auth required)")
-    print()
+    logger.info("Network PC Manager Shutdown Agent %s starting", __version__)
+    logger.info("  Hostname : %s", platform.node())
+    logger.info("  System   : %s %s", platform.system(), platform.release())
+    logger.info("  Listening: http://%s:%s", args.bind, args.port)
+    logger.info("  Log file : %s", args.log_file)
+    logger.info("  Endpoints: GET /health, POST /shutdown, POST /restart")
 
     try:
         server.serve_forever()
