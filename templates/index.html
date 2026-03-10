@@ -261,7 +261,7 @@
         <h1>PC Control Panel</h1>
         <p class="subtitle">Wake-on-LAN, Remote Shutdown &amp; Restart</p>
 
-        <span class="label">Device</span>
+        <span class="label">Device <span id="agent-status"></span></span>
         <div class="select-row">
             <select id="device-select" onchange="onDeviceChange()">
                 <option value="custom">Custom...</option>
@@ -290,10 +290,7 @@
                 <input type="text" id="port-input" value="{{ default_agent_port }}" placeholder="9876">
             </div>
             <div>
-                <span class="label">
-                    Agent Passphrase
-                    <span id="agent-status"></span>
-                </span>
+                <span class="label">Agent Passphrase</span>
                 <input type="password" id="passphrase-input" placeholder="shared secret">
             </div>
         </div>
