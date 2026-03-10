@@ -2,8 +2,8 @@ name: Build & Release Shutdown Agent
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       create_release:
@@ -19,6 +19,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,14 +30,22 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Set version
+      - name: Determine next version
+        id: next_version
         shell: bash
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
-          else
-            echo "VERSION=v0.0.0-dev-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+          # Get the latest v*.*.* tag, default to v0.0.0 if none exist
+          LATEST_TAG=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
           fi
+          # Extract minor version and increment
+          MINOR=$(echo "$LATEST_TAG" | sed 's/v[0-9]*\.\([0-9]*\)\..*/\1/')
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_VERSION="v0.${NEXT_MINOR}.0"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$NEXT_VERSION" >> "$GITHUB_ENV"
+          echo "Next version: $NEXT_VERSION"
 
       - name: Build release package
         run: python build_agent.py
@@ -46,30 +56,32 @@ jobs:
           name: shutdown-agent-windows
           path: dist/NetworkPCManager-ShutdownAgent-win-*.zip
 
+    outputs:
+      version: ${{ steps.next_version.outputs.version }}
+
   release:
     needs: build-windows
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create tag
+        run: |
+          git tag ${{ needs.build-windows.outputs.version }}
+          git push origin ${{ needs.build-windows.outputs.version }}
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Determine version
-        id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=v0.0.0-dev-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Shutdown Agent ${{ steps.version.outputs.tag }}"
+          tag_name: ${{ needs.build-windows.outputs.version }}
+          name: "Shutdown Agent ${{ needs.build-windows.outputs.version }}"
           body: |
             ## Shutdown Agent Release
 
@@ -80,4 +92,4 @@ jobs:
             See the included `README.txt` for details.
           files: artifacts/**/*.zip
           draft: false
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          prerelease: false
