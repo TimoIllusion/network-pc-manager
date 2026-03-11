@@ -141,8 +141,8 @@ Write-Log "[INFO] Extracting $($asset.name) ..."
 $ExtractDir = Join-Path $TempDir 'extracted'
 Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
 
-$NewExe = Join-Path $ExtractDir 'shutdown_agent.exe'
-if (-not (Test-Path $NewExe)) {
+$NewExe = Get-ChildItem -Path $ExtractDir -Filter 'shutdown_agent.exe' -Recurse | Select-Object -First 1 -ExpandProperty FullName
+if (-not $NewExe) {
     Write-Log "[ERROR] shutdown_agent.exe not found in the downloaded zip."
     Write-Host '[ERROR] Update package is missing shutdown_agent.exe.' -ForegroundColor Red
     Write-Host "  Log saved to: $LogFile"

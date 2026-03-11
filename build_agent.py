@@ -74,16 +74,16 @@ def create_zip():
     system = platform.system().lower()
     if system == "windows":
         arch = "x64" if platform.machine().endswith("64") else "x86"
-        zip_name = f"{PACKAGE_NAME}-win-{arch}{version_suffix}.zip"
+        zip_name = f"{PACKAGE_NAME}{version_suffix}-win-{arch}.zip"
         exe_name = "shutdown_agent.exe"
     elif system == "linux":
-        zip_name = f"{PACKAGE_NAME}-linux-x64{version_suffix}.zip"
+        zip_name = f"{PACKAGE_NAME}{version_suffix}-linux-x64.zip"
         exe_name = "shutdown_agent"
     elif system == "darwin":
-        zip_name = f"{PACKAGE_NAME}-macos-x64{version_suffix}.zip"
+        zip_name = f"{PACKAGE_NAME}{version_suffix}-macos-x64.zip"
         exe_name = "shutdown_agent"
     else:
-        zip_name = f"{PACKAGE_NAME}-{system}{version_suffix}.zip"
+        zip_name = f"{PACKAGE_NAME}{version_suffix}-{system}.zip"
         exe_name = "shutdown_agent"
 
     # Files inside the zip are placed under a versioned directory
