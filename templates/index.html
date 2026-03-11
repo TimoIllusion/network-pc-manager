@@ -141,6 +141,13 @@
         .status-dot.offline { background: var(--danger); }
         .status-dot.checking { background: var(--muted); animation: pulse 1s infinite; }
 
+        .agent-version {
+            font-size: 11px;
+            color: var(--muted);
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
@@ -411,7 +418,9 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'ok') {
-                        statusEl.innerHTML = `<span class="status-dot online" title="${data.hostname} - online"></span>`;
+                        const version = data.version ? `v${data.version}` : '';
+                        const versionTag = version ? `<span class="agent-version">${version}</span>` : '';
+                        statusEl.innerHTML = `<span class="status-dot online" title="${data.hostname} - online"></span>${versionTag}`;
                     } else {
                         statusEl.innerHTML = '<span class="status-dot offline" title="Agent unreachable"></span>';
                     }
