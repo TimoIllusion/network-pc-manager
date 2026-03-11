@@ -27,13 +27,75 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
+import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from version import __version__
 
 DEFAULT_PORT = 9876
 SHUTDOWN_DELAY_SECONDS = 3
+GITHUB_REPO = "TimoIllusion/network-pc-manager"
+
+
+def _fetch_latest_github_release():
+    """Query GitHub API and return (tag_name, win_x64_download_url_or_None)."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    req = urllib.request.Request(url, headers={"User-Agent": "NetworkPCManager-Agent"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    tag = data["tag_name"]
+    for asset in data.get("assets", []):
+        if "win-x64" in asset["name"] and asset["name"].endswith(".zip"):
+            return tag, asset["browser_download_url"]
+    return tag, None
+
+
+def _parse_version(v):
+    """Parse 'v0.2.0' or '0.2.0' into a comparable tuple of ints."""
+    return tuple(int(x) for x in v.lstrip("v").split("."))
+
+
+def _start_windows_update(download_url):
+    """Write a detached PowerShell updater script and schedule agent exit."""
+    install_dir = os.path.dirname(sys.executable)
+    task_name = "NetworkPCManager-ShutdownAgent"
+    script = (
+        "$ErrorActionPreference = 'Stop'\n"
+        "Start-Sleep -Seconds 3\n"
+        "$zip = \"$env:TEMP\\npm_update.zip\"\n"
+        "$dir = \"$env:TEMP\\npm_update\"\n"
+        f"Invoke-WebRequest -Uri '{download_url}' -OutFile $zip -UseBasicParsing\n"
+        "if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }\n"
+        "Expand-Archive -Path $zip -DestinationPath $dir\n"
+        "$exe = Get-ChildItem -Path $dir -Filter 'shutdown_agent.exe' -Recurse | Select-Object -First 1\n"
+        f"Stop-ScheduledTask -TaskName '{task_name}' -ErrorAction SilentlyContinue\n"
+        "Start-Sleep -Seconds 2\n"
+        f"Copy-Item $exe.FullName '{install_dir}\\shutdown_agent.exe' -Force\n"
+        f"Start-ScheduledTask -TaskName '{task_name}'\n"
+        "Remove-Item $zip -ErrorAction SilentlyContinue\n"
+        "Remove-Item $dir -Recurse -ErrorAction SilentlyContinue\n"
+    )
+    script_path = os.path.join(tempfile.gettempdir(), "npm_selfupdate.ps1")
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(script)
+    subprocess.Popen(
+        ["powershell.exe", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", script_path],
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+    )
+    threading.Timer(2.0, lambda: os._exit(0)).start()
+
+
+def _start_unix_update():
+    """Invoke update_agent.sh from the repo root as a background process."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    update_sh = os.path.join(script_dir, "update_agent.sh")
+    if not os.path.isfile(update_sh):
+        raise FileNotFoundError(f"update_agent.sh not found at {update_sh}")
+    subprocess.Popen(["bash", update_sh], start_new_session=True)
 
 
 def get_default_log_path():
@@ -195,6 +257,39 @@ class ShutdownHandler(BaseHTTPRequestHandler):
                     subprocess.Popen(cmd)
             except Exception as e:
                 self.log_message("Restart command failed: %s", str(e))
+        elif self.path == "/update":
+            if not self._check_auth():
+                return
+            try:
+                tag, download_url = _fetch_latest_github_release()
+                latest = _parse_version(tag)
+                current = _parse_version(__version__)
+                if latest <= current:
+                    self._send_json(200, {"status": "up_to_date", "version": __version__})
+                    return
+                system = platform.system().lower()
+                new_version = tag.lstrip("v")
+                if system == "windows":
+                    if not download_url:
+                        self._send_json(500, {"error": "No Windows release asset found on GitHub"})
+                        return
+                    self._send_json(200, {
+                        "status": "update_initiated",
+                        "current_version": __version__,
+                        "new_version": new_version,
+                    })
+                    self.log_message("Update to %s initiated (Windows)", tag)
+                    _start_windows_update(download_url)
+                else:
+                    self._send_json(200, {
+                        "status": "update_initiated",
+                        "current_version": __version__,
+                        "new_version": new_version,
+                    })
+                    self.log_message("Update to %s initiated (Unix)", tag)
+                    _start_unix_update()
+            except Exception as e:
+                self._send_json(500, {"error": f"Update failed: {e}"})
         else:
             self._send_json(404, {"error": "Not found"})
 
@@ -258,7 +353,7 @@ Environment variables:
     logger.info("  System   : %s %s", platform.system(), platform.release())
     logger.info("  Listening: http://%s:%s", args.bind, args.port)
     logger.info("  Log file : %s", args.log_file)
-    logger.info("  Endpoints: GET /health, POST /shutdown, POST /restart")
+    logger.info("  Endpoints: GET /health, POST /shutdown, POST /restart, POST /update")
 
     try:
         server.serve_forever()

@@ -109,6 +109,44 @@ def restart():
         return f"Could not reach shutdown agent on {ip_address}:{port}: {e}", 500
 
 
+@app.route("/update-agent", methods=["GET"])
+def update_agent():
+    """Trigger a self-update on the remote shutdown agent via GitHub release."""
+    ip_address = request.args.get("ip", "")
+    port = request.args.get("port", str(DEFAULT_AGENT_PORT))
+    passphrase = request.args.get("passphrase", "")
+
+    if not ip_address:
+        return "IP address is required", 400
+    if not passphrase:
+        return "Passphrase is required", 400
+
+    url = f"http://{ip_address}:{port}/update"
+    headers = {
+        "Authorization": f"Bearer {passphrase}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            if body.get("status") == "up_to_date":
+                return f"Update: Agent is already up to date (v{body.get('version', '')})", 200
+            else:
+                new_v = body.get("new_version", "")
+                return f"Update: Update to v{new_v} initiated \u2014 agent will restart shortly", 200
+    except urllib.error.HTTPError as e:
+        try:
+            body = json.loads(e.read().decode("utf-8"))
+            detail = body.get("error", str(e))
+        except Exception:
+            detail = str(e)
+        return f"Update failed on {ip_address}: {detail}", e.code
+    except Exception as e:
+        return f"Could not reach agent on {ip_address}:{port}: {e}", 500
+
+
 @app.route("/health-check", methods=["GET"])
 def health_check():
     """Check if a remote shutdown agent is reachable."""

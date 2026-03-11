@@ -179,6 +179,7 @@
         .btn-wake { background: var(--primary); }
         .btn-shutdown { background: var(--danger); }
         .btn-restart { background: var(--warning); }
+        .btn-update { background: #0891b2; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* Modal */
@@ -315,6 +316,10 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 .49-4.95"></path></svg>
                 Restart System
             </button>
+            <button class="btn btn-update" onclick="openModal('update')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Update Agent
+            </button>
         </div>
     </div>
 
@@ -372,6 +377,7 @@
         function setShutdownEnabled(enabled) {
             document.querySelector('.btn-shutdown').disabled = !enabled;
             document.querySelector('.btn-restart').disabled = !enabled;
+            document.querySelector('.btn-update').disabled = !enabled;
         }
 
         function rescanNetwork() {
@@ -458,12 +464,18 @@
                 desc.textContent = `Send shutdown command to ${ip} via agent?`;
                 confirmBtn.className = 'btn btn-modal btn-shutdown';
                 confirmBtn.textContent = 'Shutdown';
-            } else {
+            } else if (action === 'restart') {
                 const ip = document.getElementById('ip-input').value;
                 title.textContent = 'Restart System';
                 desc.textContent = `Send restart command to ${ip} via agent?`;
                 confirmBtn.className = 'btn btn-modal btn-restart';
                 confirmBtn.textContent = 'Restart';
+            } else if (action === 'update') {
+                const ip = document.getElementById('ip-input').value;
+                title.textContent = 'Update Agent';
+                desc.textContent = `Check GitHub for a newer agent version and update ${ip} if one is available?`;
+                confirmBtn.className = 'btn btn-modal btn-update';
+                confirmBtn.textContent = 'Update';
             }
 
             document.getElementById('modal').classList.add('active');
@@ -483,6 +495,15 @@
             if (action === 'wake') {
                 if (!mac) return showToast('MAC address required', 'error');
                 fetch(`/wake?mac=${encodeURIComponent(mac)}`)
+                    .then(r => r.text().then(t => ({ t, ok: r.ok })))
+                    .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
+                    .catch(e => showToast(e.message, 'error'));
+            } else if (action === 'update') {
+                const port = document.getElementById('port-input').value.trim();
+                const passphrase = document.getElementById('passphrase-input').value;
+                if (!ip || !passphrase) return showToast('IP and passphrase required', 'error');
+                showToast('Checking for updates...', 'success');
+                fetch(`/update-agent?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`)
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
                     .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
                     .catch(e => showToast(e.message, 'error'));
