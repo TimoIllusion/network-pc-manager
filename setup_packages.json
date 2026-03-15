@@ -1,0 +1,52 @@
+{
+    "packages": [
+        {
+            "name": "Google Chrome",
+            "winget_id": "Google.Chrome",
+            "category": "browser",
+            "required": true
+        },
+        {
+            "name": "Mozilla Firefox",
+            "winget_id": "Mozilla.Firefox",
+            "category": "browser",
+            "required": false
+        },
+        {
+            "name": "7-Zip",
+            "winget_id": "7zip.7zip",
+            "category": "utility",
+            "required": true
+        },
+        {
+            "name": "VLC Media Player",
+            "winget_id": "VideoLAN.VLC",
+            "category": "media",
+            "required": true
+        },
+        {
+            "name": "Steam",
+            "winget_id": "Valve.Steam",
+            "category": "gaming",
+            "required": true
+        },
+        {
+            "name": "Discord",
+            "winget_id": "Discord.Discord",
+            "category": "gaming",
+            "required": true
+        },
+        {
+            "name": "NVIDIA GeForce Experience",
+            "winget_id": "Nvidia.GeForceExperience",
+            "category": "driver",
+            "required": false
+        },
+        {
+            "name": "Notepad++",
+            "winget_id": "Notepad++.Notepad++",
+            "category": "utility",
+            "required": false
+        }
+    ]
+}

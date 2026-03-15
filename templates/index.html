@@ -268,7 +268,7 @@
         <h1>PC Control Panel</h1>
         <p class="subtitle">Wake-on-LAN, Remote Shutdown &amp; Restart</p>
 
-        <span class="label">Device <span id="agent-status"></span></span>
+        <span class="label">Device <span id="agent-status"></span> <span id="ssh-status"></span></span>
         <div class="select-row">
             <select id="device-select" onchange="onDeviceChange()">
                 <option value="custom">Custom...</option>
@@ -362,9 +362,12 @@
                     document.getElementById('mac-input').value = device.mac;
                     document.getElementById('ip-input').value = device.ip;
                     setShutdownEnabled(device.online);
-                    if (device.online) checkAgentHealth();
-                    else document.getElementById('agent-status').innerHTML =
-                        '<span class="status-dot offline" title="Device offline"></span>';
+                    if (device.online) { checkAgentHealth(); checkSSH(); }
+                    else {
+                        document.getElementById('agent-status').innerHTML =
+                            '<span class="status-dot offline" title="Device offline"></span>';
+                        document.getElementById('ssh-status').innerHTML = '';
+                    }
                 }
             }
         }
@@ -430,7 +433,27 @@
                 });
         }
 
-        document.getElementById('ip-input').addEventListener('change', checkAgentHealth);
+        function checkSSH() {
+            const ip = document.getElementById('ip-input').value.trim();
+            const statusEl = document.getElementById('ssh-status');
+            if (!ip) { statusEl.innerHTML = ''; return; }
+
+            statusEl.innerHTML = '<span class="status-dot checking" title="Checking SSH..."></span><span class="agent-version">SSH</span>';
+            fetch(`/check-ssh?ip=${encodeURIComponent(ip)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ssh_available) {
+                        statusEl.innerHTML = '<span class="status-dot online" title="SSH reachable"></span><span class="agent-version">SSH</span>';
+                    } else {
+                        statusEl.innerHTML = '<span class="status-dot offline" title="SSH unreachable"></span><span class="agent-version">SSH</span>';
+                    }
+                })
+                .catch(() => {
+                    statusEl.innerHTML = '<span class="status-dot offline" title="SSH check failed"></span><span class="agent-version">SSH</span>';
+                });
+        }
+
+        document.getElementById('ip-input').addEventListener('change', () => { checkAgentHealth(); checkSSH(); });
         document.getElementById('port-input').addEventListener('change', checkAgentHealth);
 
         function showToast(text, type = 'success') {
