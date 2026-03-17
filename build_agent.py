@@ -118,6 +118,25 @@ def create_zip():
                     else:
                         zf.write(fpath, arcname)
 
+        # Include bootstrap files for automated PC setup
+        bootstrap_files = [
+            ("bootstrap.bat", True),
+            ("bootstrap.ps1", True),
+            ("setup_packages.json", False),
+        ]
+        for fname, needs_crlf in bootstrap_files:
+            if os.path.isfile(fname):
+                arcname = os.path.join(inner_dir, fname)
+                if needs_crlf:
+                    with open(fname, "rb") as f:
+                        content = f.read()
+                    content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                    info = zipfile.ZipInfo(arcname)
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    zf.writestr(info, content)
+                else:
+                    zf.write(fname, arcname)
+
     print(f"  -> {zip_path}  ({os.path.getsize(zip_path) / 1024 / 1024:.1f} MB)")
     return zip_path
 

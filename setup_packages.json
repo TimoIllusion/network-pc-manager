@@ -1,0 +1,40 @@
+{
+    "packages": [
+        {
+            "name": "Google Chrome",
+            "winget_id": "Google.Chrome"
+        },
+        {
+            "name": "Steam",
+            "winget_id": "Valve.Steam"
+        },
+        {
+            "name": "RustDesk",
+            "winget_id": "RustDesk.RustDesk"
+        },
+        {
+            "name": "HWiNFO",
+            "winget_id": "REALiX.HWiNFO"
+        },
+        {
+            "name": "Argus Monitor",
+            "winget_id": "Argotronic.ArgusMonitor"
+        },
+        {
+            "name": "FurMark",
+            "winget_id": "Geeks3D.FurMark"
+        },
+        {
+            "name": "CPU-Z",
+            "winget_id": "CPUID.CPU-Z"
+        },
+        {
+            "name": "AIDA64 Extreme",
+            "winget_id": "FinalWire.AIDA64.Extreme"
+        },
+        {
+            "name": "GPU-Z",
+            "winget_id": "TechPowerUp.GPU-Z"
+        }
+    ]
+}

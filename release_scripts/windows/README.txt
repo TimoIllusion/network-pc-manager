@@ -4,14 +4,21 @@ Network PC Manager - Shutdown Agent
 This is the standalone shutdown agent for Network PC Manager.
 No Python installation required - everything is bundled.
 
-Quick Start
------------
+Quick Start (Agent Only)
+------------------------
 1. Right-click "install.bat" and select "Run as administrator"
    IMPORTANT: Must be run as Administrator. The script will NOT auto-elevate.
    If you forget, you will get a clear error message telling you what to do.
 2. Enter a passphrase (min 8 characters) when prompted
 3. Enter a port number or press Enter for the default (9876)
 4. Done! The agent is running and will auto-start at system startup (no login required).
+
+Full PC Bootstrap (Agent + Software)
+-------------------------------------
+To install the agent AND common software in one go:
+1. Edit "setup_packages.json" to customize the software list (optional)
+2. Right-click "bootstrap.bat" and select "Run as administrator"
+3. The script will install the agent first, then all packages via winget
 
 Test it:
     Open a browser and go to: http://localhost:9876/health
