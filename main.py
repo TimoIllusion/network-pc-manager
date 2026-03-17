@@ -1,6 +1,5 @@
 import json
 import os
-import socket
 import urllib.error
 import urllib.request
 
@@ -127,38 +126,6 @@ def health_check():
             return jsonify(body), 200
     except Exception as e:
         return jsonify({"status": "unreachable", "error": str(e)}), 502
-
-
-@app.route("/check-ssh", methods=["GET"])
-def check_ssh():
-    """Check if SSH (port 22) is reachable on a target machine."""
-    ip_address = request.args.get("ip", "")
-    port = int(request.args.get("port", "22"))
-
-    if not ip_address:
-        return jsonify({"ssh_available": False, "error": "IP address is required"}), 400
-
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(3)
-        result = sock.connect_ex((ip_address, port))
-        sock.close()
-        return jsonify({"ssh_available": result == 0}), 200
-    except Exception as e:
-        return jsonify({"ssh_available": False, "error": str(e)}), 200
-
-
-@app.route("/setup-packages", methods=["GET"])
-def get_setup_packages():
-    """Return the configured setup package list."""
-    pkg_file = os.path.join(os.path.dirname(__file__), "setup_packages.json")
-    try:
-        with open(pkg_file, encoding="utf-8") as f:
-            return jsonify(json.load(f)), 200
-    except FileNotFoundError:
-        return jsonify({"packages": []}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

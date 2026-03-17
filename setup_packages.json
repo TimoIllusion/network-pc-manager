@@ -2,51 +2,39 @@
     "packages": [
         {
             "name": "Google Chrome",
-            "winget_id": "Google.Chrome",
-            "category": "browser",
-            "required": true
-        },
-        {
-            "name": "Mozilla Firefox",
-            "winget_id": "Mozilla.Firefox",
-            "category": "browser",
-            "required": false
-        },
-        {
-            "name": "7-Zip",
-            "winget_id": "7zip.7zip",
-            "category": "utility",
-            "required": true
-        },
-        {
-            "name": "VLC Media Player",
-            "winget_id": "VideoLAN.VLC",
-            "category": "media",
-            "required": true
+            "winget_id": "Google.Chrome"
         },
         {
             "name": "Steam",
-            "winget_id": "Valve.Steam",
-            "category": "gaming",
-            "required": true
+            "winget_id": "Valve.Steam"
         },
         {
-            "name": "Discord",
-            "winget_id": "Discord.Discord",
-            "category": "gaming",
-            "required": true
+            "name": "RustDesk",
+            "winget_id": "RustDesk.RustDesk"
         },
         {
-            "name": "NVIDIA GeForce Experience",
-            "winget_id": "Nvidia.GeForceExperience",
-            "category": "driver",
-            "required": false
+            "name": "HWiNFO",
+            "winget_id": "REALiX.HWiNFO"
         },
         {
-            "name": "Notepad++",
-            "winget_id": "Notepad++.Notepad++",
-            "category": "utility",
-            "required": false
+            "name": "Argus Monitor",
+            "winget_id": "Argotronic.ArgusMonitor"
+        },
+        {
+            "name": "FurMark",
+            "winget_id": "Geeks3D.FurMark"
+        },
+        {
+            "name": "CPU-Z",
+            "winget_id": "CPUID.CPU-Z"
+        },
+        {
+            "name": "AIDA64 Extreme",
+            "winget_id": "FinalWire.AIDA64.Extreme"
+        },
+        {
+            "name": "GPU-Z",
+            "winget_id": "TechPowerUp.GPU-Z"
         }
     ]
 }
