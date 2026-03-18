@@ -6,7 +6,7 @@ import urllib.request
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
-from registry import merge_scan
+from registry import merge_scan, load_registry, save_registry
 from scan import scan_network
 
 DEFAULT_AGENT_PORT = int(os.environ.get("NETWORK_PC_MANAGER_AGENT_PORT", "9876"))
@@ -107,6 +107,22 @@ def restart():
         return f"Restart failed on {ip_address}: {detail}", e.code
     except Exception as e:
         return f"Could not reach shutdown agent on {ip_address}:{port}: {e}", 500
+
+
+@app.route("/rename", methods=["POST"])
+def rename():
+    """Set or clear the custom name for a registry entry."""
+    data = request.get_json(silent=True) or {}
+    mac = (data.get("mac") or "").strip().upper()
+    custom_name = (data.get("custom_name") or "").strip()
+    if not mac:
+        return "MAC address is required", 400
+    registry = load_registry()
+    if mac not in registry:
+        return f"Device {mac} not found in registry", 404
+    registry[mac]["custom_name"] = custom_name
+    save_registry(registry)
+    return jsonify({"ok": True})
 
 
 @app.route("/health-check", methods=["GET"])
