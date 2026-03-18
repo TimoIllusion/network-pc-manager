@@ -32,7 +32,13 @@ def merge_scan(scan_results: list[dict]) -> list[dict]:
     for device in scan_results:
         mac = device["mac"]
         online_macs.add(mac)
-        registry[mac] = {"ip": device["ip"], "mac": mac, "name": device["name"]}
+        existing = registry.get(mac, {})
+        registry[mac] = {
+            "ip": device["ip"],
+            "mac": mac,
+            "name": device["name"],
+            "custom_name": existing.get("custom_name", ""),
+        }
 
     save_registry(registry)
 
@@ -43,9 +49,12 @@ def merge_scan(scan_results: list[dict]) -> list[dict]:
                 "ip": info["ip"] if mac in online_macs else "",
                 "mac": mac,
                 "name": info["name"],
+                "custom_name": info.get("custom_name", ""),
                 "online": mac in online_macs,
             }
         )
 
-    result.sort(key=lambda d: (not d["online"], d["name"].lower()))
+    # Sort: online first, then offline; within each group custom-named entries first,
+    # then alphabetically by name (case-insensitive).
+    result.sort(key=lambda d: (not d["online"], not bool(d.get("custom_name", "")), d["name"].lower()))
     return result
