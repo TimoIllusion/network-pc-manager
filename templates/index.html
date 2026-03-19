@@ -338,6 +338,22 @@
         </div>
     </div>
 
+    <!-- Passphrase Prompt Modal -->
+    <div id="passphrase-modal" class="modal-overlay" onclick="closePassphraseModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-title" id="passphrase-modal-title">Enter Passphrase</div>
+            <div class="modal-desc" id="passphrase-modal-desc">A passphrase is required to perform this action.</div>
+            <div style="margin-bottom: 20px; text-align: left;">
+                <span class="label">Agent Passphrase</span>
+                <input type="password" id="passphrase-prompt-input" placeholder="shared secret">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-modal btn-cancel" onclick="closePassphraseModal()">Cancel</button>
+                <button class="btn btn-modal" id="passphrase-confirm-btn" onclick="confirmPassphrase()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Rename Modal -->
     <div id="rename-modal" class="modal-overlay" onclick="closeRenameModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -461,6 +477,9 @@
 
         document.getElementById('ip-input').addEventListener('change', checkAgentHealth);
         document.getElementById('port-input').addEventListener('change', checkAgentHealth);
+        document.getElementById('passphrase-prompt-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') confirmPassphrase();
+        });
 
         function openRenameModal() {
             const select = document.getElementById('device-select');
@@ -514,11 +533,57 @@
             setTimeout(() => toast.classList.remove('active'), 5000);
         }
 
+        function openPassphraseModal(action) {
+            currentAction = action;
+            const ip = document.getElementById('ip-input').value;
+            const title = document.getElementById('passphrase-modal-title');
+            const desc = document.getElementById('passphrase-modal-desc');
+            const confirmBtn = document.getElementById('passphrase-confirm-btn');
+
+            if (action === 'shutdown') {
+                title.textContent = 'Remote Shutdown';
+                desc.textContent = `Enter the passphrase to shut down ${ip}.`;
+                confirmBtn.className = 'btn btn-modal btn-shutdown';
+                confirmBtn.textContent = 'Shutdown';
+            } else {
+                title.textContent = 'Restart System';
+                desc.textContent = `Enter the passphrase to restart ${ip}.`;
+                confirmBtn.className = 'btn btn-modal btn-restart';
+                confirmBtn.textContent = 'Restart';
+            }
+
+            document.getElementById('passphrase-prompt-input').value = '';
+            document.getElementById('passphrase-prompt-input').style.borderColor = '';
+            document.getElementById('passphrase-modal').classList.add('active');
+            setTimeout(() => document.getElementById('passphrase-prompt-input').focus(), 50);
+        }
+
+        function closePassphraseModal(e) {
+            if (e && e.currentTarget !== e.target) return;
+            document.getElementById('passphrase-modal').classList.remove('active');
+        }
+
+        function confirmPassphrase() {
+            const passphrase = document.getElementById('passphrase-prompt-input').value;
+            if (!passphrase) {
+                document.getElementById('passphrase-prompt-input').style.borderColor = 'var(--danger)';
+                return;
+            }
+            document.getElementById('passphrase-input').value = passphrase;
+            closePassphraseModal();
+            executeAction();
+        }
+
         function openModal(action) {
             currentAction = action;
             const title = document.getElementById('modal-title');
             const desc = document.getElementById('modal-desc');
             const confirmBtn = document.getElementById('modal-confirm-btn');
+
+            if ((action === 'shutdown' || action === 'restart') && !document.getElementById('passphrase-input').value) {
+                openPassphraseModal(action);
+                return;
+            }
 
             if (action === 'wake') {
                 title.textContent = 'Wake System';
