@@ -54,7 +54,7 @@ def merge_scan(scan_results: list[dict]) -> list[dict]:
             }
         )
 
-    # Sort: online first, then offline; within each group custom-named entries first,
-    # then alphabetically by name (case-insensitive).
-    result.sort(key=lambda d: (not d["online"], not bool(d.get("custom_name", "")), d["name"].lower()))
+    # Sort: custom-named devices first (alphabetically), then generic names (alphabetically).
+    # Online/offline status does not affect ordering.
+    result.sort(key=lambda d: (not bool(d.get("custom_name", "")), d["name"].lower()))
     return result
