@@ -35,6 +35,10 @@
         {
             "name": "GPU-Z",
             "winget_id": "TechPowerUp.GPU-Z"
+        },
+        {
+            "name": "OCCT",
+            "winget_id": "OCBase.OCCT"
         }
     ]
 }
