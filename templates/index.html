@@ -503,9 +503,24 @@
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-title" id="passphrase-modal-title">Enter Passphrase</div>
             <div class="modal-desc" id="passphrase-modal-desc">A passphrase is required to perform this action.</div>
-            <div style="margin-bottom: 20px; text-align: left;">
+            <div style="margin-bottom: 16px; text-align: left;">
                 <span class="label">Agent Passphrase</span>
                 <input type="password" id="passphrase-prompt-input" placeholder="shared secret">
+            </div>
+            <div id="shutdown-timer-row" style="margin-bottom: 20px; text-align: left; display: none;">
+                <span class="label">Shutdown Timer</span>
+                <select id="shutdown-delay-select">
+                    <option value="0">Immediately</option>
+                    <option value="30">In 30 minutes</option>
+                    <option value="60">In 1 hour</option>
+                    <option value="120">In 2 hours</option>
+                    <option value="180">In 3 hours</option>
+                    <option value="240">In 4 hours</option>
+                    <option value="300">In 5 hours</option>
+                    <option value="360">In 6 hours</option>
+                    <option value="420">In 7 hours</option>
+                    <option value="480">In 8 hours</option>
+                </select>
             </div>
             <div class="modal-buttons">
                 <button class="btn btn-modal btn-cancel" onclick="closePassphraseModal()">Cancel</button>
@@ -538,6 +553,7 @@
 
     <script>
         let currentAction = null;
+        let currentDelayMinutes = 0;
         let devices = [
             {% for device in devices %}
             { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}", online: {{ 'true' if device.online else 'false' }}, customName: "{{ device.custom_name }}" },
@@ -699,20 +715,25 @@
             const title = document.getElementById('passphrase-modal-title');
             const desc = document.getElementById('passphrase-modal-desc');
             const confirmBtn = document.getElementById('passphrase-confirm-btn');
+            const timerRow = document.getElementById('shutdown-timer-row');
 
             if (action === 'shutdown') {
                 title.textContent = 'Remote Shutdown';
                 desc.textContent = `Enter the passphrase to shut down ${ip}.`;
                 confirmBtn.className = 'btn btn-modal btn-shutdown';
                 confirmBtn.textContent = 'Shutdown';
+                timerRow.style.display = '';
+                document.getElementById('shutdown-delay-select').value = '0';
             } else {
                 title.textContent = 'Restart System';
                 desc.textContent = `Enter the passphrase to restart ${ip}.`;
                 confirmBtn.className = 'btn btn-modal btn-restart';
                 confirmBtn.textContent = 'Restart';
+                timerRow.style.display = 'none';
             }
 
-            document.getElementById('passphrase-prompt-input').value = '';
+            const existingPassphrase = document.getElementById('passphrase-input').value;
+            document.getElementById('passphrase-prompt-input').value = existingPassphrase;
             document.getElementById('passphrase-prompt-input').style.borderColor = '';
             document.getElementById('passphrase-modal').classList.add('active');
             setTimeout(() => document.getElementById('passphrase-prompt-input').focus(), 50);
@@ -730,39 +751,28 @@
                 return;
             }
             document.getElementById('passphrase-input').value = passphrase;
+            currentDelayMinutes = parseInt(document.getElementById('shutdown-delay-select').value) || 0;
             closePassphraseModal();
             executeAction();
         }
 
         function openModal(action) {
             currentAction = action;
-            const title = document.getElementById('modal-title');
-            const desc = document.getElementById('modal-desc');
-            const confirmBtn = document.getElementById('modal-confirm-btn');
 
-            if ((action === 'shutdown' || action === 'restart') && !document.getElementById('passphrase-input').value) {
+            if (action === 'shutdown' || action === 'restart') {
                 openPassphraseModal(action);
                 return;
             }
 
-            if (action === 'wake') {
-                title.textContent = 'Wake System';
-                desc.textContent = `Send Magic Packet to ${document.getElementById('mac-input').value}?`;
-                confirmBtn.className = 'btn btn-modal btn-wake';
-                confirmBtn.textContent = 'Wake';
-            } else if (action === 'shutdown') {
-                const ip = document.getElementById('ip-input').value;
-                title.textContent = 'Remote Shutdown';
-                desc.textContent = `Send shutdown command to ${ip} via agent?`;
-                confirmBtn.className = 'btn btn-modal btn-shutdown';
-                confirmBtn.textContent = 'Shutdown';
-            } else {
-                const ip = document.getElementById('ip-input').value;
-                title.textContent = 'Restart System';
-                desc.textContent = `Send restart command to ${ip} via agent?`;
-                confirmBtn.className = 'btn btn-modal btn-restart';
-                confirmBtn.textContent = 'Restart';
-            }
+            const title = document.getElementById('modal-title');
+            const desc = document.getElementById('modal-desc');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+
+            // action === 'wake'
+            title.textContent = 'Wake System';
+            desc.textContent = `Send Magic Packet to ${document.getElementById('mac-input').value}?`;
+            confirmBtn.className = 'btn btn-modal btn-wake';
+            confirmBtn.textContent = 'Wake';
 
             document.getElementById('modal').classList.add('active');
         }
@@ -790,7 +800,11 @@
                 if (!ip || !passphrase) return showToast('IP and passphrase required', 'error');
                 const endpoint = action === 'restart' ? 'restart' : 'shutdown';
                 showToast(`Sending ${endpoint} command...`, 'success');
-                fetch(`/${endpoint}?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`)
+                let url = `/${endpoint}?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`;
+                if (action === 'shutdown' && currentDelayMinutes > 0) {
+                    url += `&delay_minutes=${currentDelayMinutes}`;
+                }
+                fetch(url)
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
                     .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
                     .catch(e => showToast(e.message, 'error'));

@@ -55,6 +55,10 @@ def shutdown():
     ip_address = request.args.get("ip", "")
     port = request.args.get("port", str(DEFAULT_AGENT_PORT))
     passphrase = request.args.get("passphrase", "")
+    try:
+        delay_minutes = max(0, int(request.args.get("delay_minutes", "0")))
+    except ValueError:
+        delay_minutes = 0
 
     if not ip_address:
         return "IP address is required", 400
@@ -66,9 +70,10 @@ def shutdown():
         "Authorization": f"Bearer {passphrase}",
         "Content-Type": "application/json",
     }
+    payload = json.dumps({"delay_minutes": delay_minutes}).encode("utf-8")
 
     try:
-        req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             msg = body.get("message", "Shutdown accepted")
