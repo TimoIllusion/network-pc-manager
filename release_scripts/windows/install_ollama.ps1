@@ -57,35 +57,28 @@ if ($ollamaPath) {
     Write-Log "[INFO] Ollama already installed at: $($ollamaPath.Source)"
     Write-Host "[INFO] Ollama is already installed." -ForegroundColor Green
 } else {
-    # ── Download and install Ollama ──────────────────────────────────────────
-    Write-Log '[INFO] Downloading Ollama installer...'
-    $installerUrl = 'https://ollama.com/download/OllamaSetup.exe'
-    $installerPath = Join-Path $env:TEMP 'OllamaSetup.exe'
-
-    try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $wc = New-Object System.Net.WebClient
-        $wc.DownloadFile($installerUrl, $installerPath)
-        Write-Log '[INFO] Download complete.'
-    } catch {
-        Write-Log "[ERROR] Failed to download Ollama: $_"
-        Write-Host "[ERROR] Failed to download Ollama installer: $_" -ForegroundColor Red
-        Write-Host '  You can install Ollama manually from https://ollama.com/download'
+    # ── Install Ollama via winget ────────────────────────────────────────────
+    $hasWinget = Get-Command 'winget' -ErrorAction SilentlyContinue
+    if (-not $hasWinget) {
+        Write-Log '[ERROR] winget not found. Please install App Installer from the Microsoft Store.'
+        Write-Host '[ERROR] winget is not available on this system.' -ForegroundColor Red
+        Write-Host '  Install "App Installer" from the Microsoft Store, then retry.'
         exit 1
     }
 
-    Write-Log '[INFO] Running Ollama installer (silent)...'
+    Write-Log '[INFO] Installing Ollama via winget...'
+    Write-Host '[INFO] Installing Ollama via winget (this may take a minute)...'
     try {
-        $proc = Start-Process -FilePath $installerPath -ArgumentList '/VERYSILENT', '/NORESTART' -Wait -PassThru
-        if ($proc.ExitCode -ne 0) {
-            Write-Log "[WARN] Installer exited with code $($proc.ExitCode)"
+        winget install --id Ollama.Ollama --exact --accept-source-agreements --accept-package-agreements --silent
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "[WARN] winget exited with code $LASTEXITCODE"
         }
-        Write-Log '[INFO] Ollama installed.'
+        Write-Log '[INFO] Ollama installed via winget.'
         Write-Host '[INFO] Ollama installed successfully.'
     } catch {
         Write-Log "[ERROR] Ollama installation failed: $_"
         Write-Host "[ERROR] Ollama installation failed: $_" -ForegroundColor Red
-        Write-Host '  You can install Ollama manually from https://ollama.com/download'
+        Write-Host '  You can install Ollama manually: winget install Ollama.Ollama'
         exit 1
     }
 
