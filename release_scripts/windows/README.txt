@@ -51,6 +51,22 @@ Uninstall
 Right-click "uninstall.bat" and select "Run as administrator".
 This removes everything cleanly (task, firewall rule, env var, files).
 
+Ollama LLM Setup (Optional)
+----------------------------
+To turn this PC into a local LLM inference server:
+1. Right-click "install_ollama.bat" and select "Run as administrator"
+2. Wait for Ollama to download and install
+3. Enter a model name when prompted (default: llama3.2:3b)
+4. Done! The OpenAI-compatible API is available at http://<this-pc-ip>:11434/v1
+
+What gets installed:
+- Ollama (via official installer)
+- Scheduled Task: "NetworkPCManager-Ollama" (runs at startup, no login required)
+- Firewall Rule: "NetworkPCManager-Ollama" (allows inbound TCP on port 11434)
+- Environment Var: OLLAMA_HOST=0.0.0.0 (listen on all interfaces)
+
+You can manage the LLM endpoint from the Network PC Manager web UI.
+
 More Info
 ---------
 https://github.com/TimoIllusion/network-pc-manager

@@ -6,6 +6,16 @@ import urllib.request
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
+from llm_manager import (
+    load_config as load_llm_config,
+    save_config as save_llm_config,
+    get_status as get_llm_status,
+    start_ollama,
+    stop_ollama,
+    pull_model,
+    unload_model,
+    ensure_firewall,
+)
 from registry import merge_scan, load_registry, save_registry
 from scan import scan_network
 
@@ -142,6 +152,71 @@ def health_check():
             return jsonify(body), 200
     except Exception as e:
         return jsonify({"status": "unreachable", "error": str(e)}), 502
+
+
+# ── LLM / Ollama management ──────────────────────────────────────────────────
+
+
+@app.route("/llm/status", methods=["GET"])
+def llm_status():
+    """Return Ollama status and current config."""
+    return jsonify(get_llm_status())
+
+
+@app.route("/llm/config", methods=["GET"])
+def llm_config_get():
+    """Return current LLM configuration."""
+    return jsonify(load_llm_config())
+
+
+@app.route("/llm/config", methods=["POST"])
+def llm_config_set():
+    """Update LLM configuration (model, ollama_host, ollama_port)."""
+    data = request.get_json(silent=True) or {}
+    cfg = load_llm_config()
+    if "model" in data:
+        cfg["model"] = str(data["model"]).strip()
+    if "ollama_host" in data:
+        cfg["ollama_host"] = str(data["ollama_host"]).strip()
+    if "ollama_port" in data:
+        cfg["ollama_port"] = int(data["ollama_port"])
+    save_llm_config(cfg)
+    return jsonify(cfg)
+
+
+@app.route("/llm/start", methods=["POST"])
+def llm_start():
+    """Start the local Ollama serve process."""
+    ok, msg = start_ollama()
+    # Best-effort firewall rule
+    cfg = load_llm_config()
+    fw_ok, fw_msg = ensure_firewall(cfg["ollama_port"])
+    return jsonify({"ok": ok, "message": msg, "firewall": fw_msg}), 200 if ok else 500
+
+
+@app.route("/llm/stop", methods=["POST"])
+def llm_stop():
+    """Stop the local Ollama serve process."""
+    ok, msg = stop_ollama()
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
+
+
+@app.route("/llm/pull", methods=["POST"])
+def llm_pull():
+    """Pull (download) the configured model."""
+    data = request.get_json(silent=True) or {}
+    model = data.get("model") or None
+    ok, msg = pull_model(model)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
+
+
+@app.route("/llm/unload", methods=["POST"])
+def llm_unload():
+    """Unload a model from memory (free GPU/RAM)."""
+    data = request.get_json(silent=True) or {}
+    model = data.get("model") or None
+    ok, msg = unload_model(model)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
 
 
 if __name__ == "__main__":
