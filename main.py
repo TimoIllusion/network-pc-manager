@@ -13,6 +13,7 @@ from llm_manager import (
     start_ollama,
     stop_ollama,
     pull_model,
+    unload_model,
     ensure_firewall,
 )
 from registry import merge_scan, load_registry, save_registry
@@ -206,6 +207,15 @@ def llm_pull():
     data = request.get_json(silent=True) or {}
     model = data.get("model") or None
     ok, msg = pull_model(model)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
+
+
+@app.route("/llm/unload", methods=["POST"])
+def llm_unload():
+    """Unload a model from memory (free GPU/RAM)."""
+    data = request.get_json(silent=True) or {}
+    model = data.get("model") or None
+    ok, msg = unload_model(model)
     return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
 
 

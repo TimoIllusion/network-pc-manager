@@ -245,6 +245,44 @@
             margin-bottom: 16px;
         }
 
+        .llm-model-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            margin-right: 6px;
+            margin-bottom: 4px;
+        }
+
+        .llm-model-tag .mem {
+            color: var(--warning);
+            font-weight: 500;
+        }
+
+        .llm-model-tag .unload-x {
+            cursor: pointer;
+            color: var(--danger);
+            font-weight: 600;
+            font-size: 14px;
+            margin-left: 2px;
+            line-height: 1;
+        }
+
+        .llm-model-tag .unload-x:hover {
+            opacity: 0.7;
+        }
+
+        .llm-hint {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
         .llm-endpoint-box {
             background: var(--bg);
             border: 1px solid var(--border);
@@ -408,6 +446,7 @@
             <div class="llm-status-row">
                 Status: <span id="llm-status-indicator"><span class="status-dot checking"></span> checking...</span>
             </div>
+            <div class="llm-hint">Models load into memory on first inference request and auto-unload after ~5 min idle. No resources are used until a request is made.</div>
             <div class="llm-models" id="llm-loaded-models"></div>
 
             <div class="input-group" style="margin-bottom:16px">
@@ -778,11 +817,13 @@
                         indicator.innerHTML = '<span class="status-dot online"></span> running';
                         document.getElementById('llm-start-btn').disabled = true;
                         document.getElementById('llm-stop-btn').disabled = false;
+                        const modelsEl = document.getElementById('llm-loaded-models');
                         if (data.loaded_models && data.loaded_models.length > 0) {
-                            document.getElementById('llm-loaded-models').textContent =
-                                'Loaded: ' + data.loaded_models.join(', ');
+                            modelsEl.innerHTML = 'In memory: ' + data.loaded_models.map(m =>
+                                `<span class="llm-model-tag">${m.name} <span class="mem">${m.size_vram_mb || m.size_mb} MB</span><span class="unload-x" title="Unload from memory" onclick="llmUnload('${m.name}')">&times;</span></span>`
+                            ).join('');
                         } else {
-                            document.getElementById('llm-loaded-models').textContent = '';
+                            modelsEl.innerHTML = '<span style="color:var(--muted)">No models in memory (idle)</span>';
                         }
                         // Show endpoint URL
                         const host = document.getElementById('llm-host-input').value || data.ollama_host;
@@ -857,6 +898,21 @@
                 })
                 .catch(e => showToast('Pull failed: ' + e.message, 'error'))
                 .finally(() => { btn.textContent = 'Pull Model'; btn.disabled = false; });
+        }
+
+        function llmUnload(model) {
+            showToast('Unloading "' + model + '"...', 'success');
+            fetch('/llm/unload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message, data.ok ? 'success' : 'error');
+                    setTimeout(llmRefreshStatus, 1000);
+                })
+                .catch(e => showToast('Unload failed: ' + e.message, 'error'));
         }
 
         function llmSaveConfig() {

@@ -55,9 +55,17 @@ def get_status():
         with urllib.request.urlopen(req, timeout=5) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             result["running"] = True
-            result["loaded_models"] = [
-                m.get("name", "") for m in body.get("models", [])
-            ]
+            models = []
+            for m in body.get("models", []):
+                size_bytes = m.get("size", 0)
+                size_vram = m.get("size_vram", 0)
+                models.append({
+                    "name": m.get("name", ""),
+                    "size_mb": round(size_bytes / 1024 / 1024),
+                    "size_vram_mb": round(size_vram / 1024 / 1024),
+                    "expires_at": m.get("expires_at", ""),
+                })
+            result["loaded_models"] = models
     except Exception:
         pass
 
@@ -143,6 +151,32 @@ def pull_model(model=None):
         return False, f"Pull failed: {detail}"
     except Exception as e:
         return False, f"Pull failed: {e}"
+
+
+def unload_model(model=None):
+    """Unload a model from memory by setting keep_alive to 0."""
+    cfg = load_config()
+    model = model or cfg["model"]
+    base = _ollama_api_url(cfg)
+
+    try:
+        data = json.dumps({"model": model, "keep_alive": 0}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{base}/api/generate",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return True, f"Model '{model}' unloaded from memory."
+    except urllib.error.HTTPError as e:
+        try:
+            detail = json.loads(e.read().decode("utf-8")).get("error", str(e))
+        except Exception:
+            detail = str(e)
+        return False, f"Unload failed: {detail}"
+    except Exception as e:
+        return False, f"Unload failed: {e}"
 
 
 def ensure_firewall(port=11434):
