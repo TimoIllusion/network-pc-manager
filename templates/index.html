@@ -185,6 +185,77 @@
         .btn-shutdown { background: var(--danger); }
         .btn-restart { background: var(--warning); }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-llm { background: #8b5cf6; }
+
+        /* LLM Section */
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 28px 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            margin-bottom: 4px;
+            user-select: none;
+        }
+
+        .section-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .section-header .toggle-icon {
+            color: var(--muted);
+            transition: transform 0.2s;
+            font-size: 18px;
+        }
+
+        .section-header .toggle-icon.open {
+            transform: rotate(180deg);
+        }
+
+        .section-body {
+            display: none;
+        }
+
+        .section-body.open {
+            display: block;
+        }
+
+        .llm-status-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .llm-status-row .status-dot {
+            margin-left: 0;
+        }
+
+        .llm-models {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .llm-endpoint-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 16px;
+            word-break: break-all;
+            font-family: monospace;
+        }
 
         /* Modal */
         .modal-overlay {
@@ -323,6 +394,56 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 .49-4.95"></path></svg>
                 Restart System
             </button>
+        </div>
+
+        <!-- LLM Section -->
+        <hr class="section-divider">
+        <div class="section-header" onclick="toggleLlmSection()">
+            <h2>Local LLM Endpoint</h2>
+            <span class="toggle-icon" id="llm-toggle">&#9660;</span>
+        </div>
+        <p class="subtitle" style="margin-bottom:12px">Ollama — OpenAI-compatible API on your network</p>
+
+        <div class="section-body" id="llm-section">
+            <div class="llm-status-row">
+                Status: <span id="llm-status-indicator"><span class="status-dot checking"></span> checking...</span>
+            </div>
+            <div class="llm-models" id="llm-loaded-models"></div>
+
+            <div class="input-group" style="margin-bottom:16px">
+                <div>
+                    <span class="label">Model</span>
+                    <input type="text" id="llm-model-input" placeholder="llama3.2:3b">
+                </div>
+                <div>
+                    <span class="label">Ollama Host</span>
+                    <input type="text" id="llm-host-input" placeholder="127.0.0.1">
+                </div>
+                <div>
+                    <span class="label">Ollama Port</span>
+                    <input type="text" id="llm-port-input" placeholder="11434">
+                </div>
+            </div>
+
+            <div id="llm-endpoint-display" class="llm-endpoint-box" style="display:none"></div>
+
+            <div class="button-group">
+                <button class="btn btn-llm" id="llm-start-btn" onclick="llmStart()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    Start Ollama
+                </button>
+                <button class="btn btn-shutdown" id="llm-stop-btn" onclick="llmStop()" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    Stop Ollama
+                </button>
+                <button class="btn btn-wake" id="llm-pull-btn" onclick="llmPull()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Pull Model
+                </button>
+                <button class="btn" style="background:var(--border)" onclick="llmSaveConfig()">
+                    Save Config
+                </button>
+            </div>
         </div>
     </div>
 
@@ -635,6 +756,125 @@
                     .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
                     .catch(e => showToast(e.message, 'error'));
             }
+        }
+        // ── LLM / Ollama management ──────────────────────────────────────────
+
+        function toggleLlmSection() {
+            const body = document.getElementById('llm-section');
+            const icon = document.getElementById('llm-toggle');
+            body.classList.toggle('open');
+            icon.classList.toggle('open');
+            if (body.classList.contains('open')) llmRefreshStatus();
+        }
+
+        function llmRefreshStatus() {
+            const indicator = document.getElementById('llm-status-indicator');
+            indicator.innerHTML = '<span class="status-dot checking"></span> checking...';
+
+            fetch('/llm/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.running) {
+                        indicator.innerHTML = '<span class="status-dot online"></span> running';
+                        document.getElementById('llm-start-btn').disabled = true;
+                        document.getElementById('llm-stop-btn').disabled = false;
+                        if (data.loaded_models && data.loaded_models.length > 0) {
+                            document.getElementById('llm-loaded-models').textContent =
+                                'Loaded: ' + data.loaded_models.join(', ');
+                        } else {
+                            document.getElementById('llm-loaded-models').textContent = '';
+                        }
+                        // Show endpoint URL
+                        const host = document.getElementById('llm-host-input').value || data.ollama_host;
+                        const port = document.getElementById('llm-port-input').value || data.ollama_port;
+                        const display = document.getElementById('llm-endpoint-display');
+                        display.textContent = 'OpenAI-compatible endpoint: http://<server-ip>:' + port + '/v1';
+                        display.style.display = '';
+                    } else {
+                        indicator.innerHTML = '<span class="status-dot offline"></span> stopped';
+                        document.getElementById('llm-start-btn').disabled = false;
+                        document.getElementById('llm-stop-btn').disabled = true;
+                        document.getElementById('llm-loaded-models').textContent = '';
+                        document.getElementById('llm-endpoint-display').style.display = 'none';
+                    }
+                    // Populate fields from config
+                    if (data.model) document.getElementById('llm-model-input').value = data.model;
+                    if (data.ollama_host) document.getElementById('llm-host-input').value = data.ollama_host;
+                    if (data.ollama_port) document.getElementById('llm-port-input').value = data.ollama_port;
+                })
+                .catch(() => {
+                    indicator.innerHTML = '<span class="status-dot offline"></span> unreachable';
+                    document.getElementById('llm-start-btn').disabled = false;
+                    document.getElementById('llm-stop-btn').disabled = true;
+                });
+        }
+
+        function llmStart() {
+            const btn = document.getElementById('llm-start-btn');
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            fetch('/llm/start', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message, data.ok ? 'success' : 'error');
+                    if (data.firewall) showToast(data.firewall, 'success');
+                    setTimeout(llmRefreshStatus, 2000);
+                })
+                .catch(e => showToast('Failed to start Ollama: ' + e.message, 'error'))
+                .finally(() => { btn.textContent = 'Start Ollama'; btn.disabled = false; });
+        }
+
+        function llmStop() {
+            const btn = document.getElementById('llm-stop-btn');
+            btn.disabled = true;
+            btn.textContent = 'Stopping...';
+            fetch('/llm/stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message, data.ok ? 'success' : 'error');
+                    setTimeout(llmRefreshStatus, 1000);
+                })
+                .catch(e => showToast('Failed to stop Ollama: ' + e.message, 'error'))
+                .finally(() => { btn.textContent = 'Stop Ollama'; btn.disabled = false; });
+        }
+
+        function llmPull() {
+            const model = document.getElementById('llm-model-input').value.trim();
+            if (!model) return showToast('Enter a model name first', 'error');
+            const btn = document.getElementById('llm-pull-btn');
+            btn.disabled = true;
+            btn.textContent = 'Pulling...';
+            showToast('Pulling model "' + model + '" — this may take a while...', 'success');
+            fetch('/llm/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message, data.ok ? 'success' : 'error');
+                    llmRefreshStatus();
+                })
+                .catch(e => showToast('Pull failed: ' + e.message, 'error'))
+                .finally(() => { btn.textContent = 'Pull Model'; btn.disabled = false; });
+        }
+
+        function llmSaveConfig() {
+            const model = document.getElementById('llm-model-input').value.trim();
+            const host = document.getElementById('llm-host-input').value.trim();
+            const port = document.getElementById('llm-port-input').value.trim();
+            fetch('/llm/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: model || undefined,
+                    ollama_host: host || undefined,
+                    ollama_port: port ? parseInt(port) : undefined,
+                }),
+            })
+                .then(r => r.json())
+                .then(data => showToast('LLM config saved', 'success'))
+                .catch(e => showToast('Failed to save config: ' + e.message, 'error'));
         }
     </script>
 </body>
