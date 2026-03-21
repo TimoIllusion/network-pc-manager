@@ -1,4 +1,6 @@
 import json
+import logging
+import logging.handlers
 import os
 import urllib.error
 import urllib.request
@@ -6,27 +8,39 @@ import urllib.request
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
-from llm_manager import (
-    load_config as load_llm_config,
-    save_config as save_llm_config,
-    get_status as get_llm_status,
-    start_ollama,
-    stop_ollama,
-    pull_model,
-    unload_model,
-    ensure_firewall,
-)
 from registry import merge_scan, load_registry, save_registry
 from scan import scan_network
 
 DEFAULT_AGENT_PORT = int(os.environ.get("NETWORK_PC_MANAGER_AGENT_PORT", "9876"))
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+LOG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "network-pc-manager.log"
+)
+
+logger = logging.getLogger("network-pc-manager")
+logger.setLevel(logging.INFO)
+
+_fmt = logging.Formatter("[%(asctime)s] %(levelname)s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+_fh = logging.handlers.RotatingFileHandler(
+    LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
+_fh.setFormatter(_fmt)
+logger.addHandler(_fh)
+
+_sh = logging.StreamHandler()
+_sh.setFormatter(_fmt)
+logger.addHandler(_sh)
 
 app = Flask(__name__)
 
 
 @app.route("/")
 def index():
+    logger.info("Scanning network for devices...")
     devices = merge_scan(scan_network())
+    logger.info("Found %d device(s)", len(devices))
     return render_template(
         "index.html",
         devices=devices,
@@ -37,6 +51,7 @@ def index():
 @app.route("/scan")
 def scan():
     """Re-scan the network and return the device list as JSON."""
+    logger.info("Manual network re-scan triggered")
     return jsonify(merge_scan(scan_network()))
 
 
@@ -46,6 +61,7 @@ def wake():
     if not mac_address:
         return "MAC address is required", 400
     send_magic_packet(mac_address)
+    logger.info("Wake-on-LAN packet sent to %s", mac_address)
     return f"Wake-on-LAN packet sent to {mac_address}", 200
 
 
@@ -86,6 +102,7 @@ def shutdown():
             detail = str(e)
         return f"Shutdown failed on {ip_address}: {detail}", e.code
     except Exception as e:
+        logger.error("Could not reach shutdown agent on %s:%s: %s", ip_address, port, e)
         return f"Could not reach shutdown agent on {ip_address}:{port}: {e}", 500
 
 
@@ -159,70 +176,6 @@ def health_check():
         return jsonify({"status": "unreachable", "error": str(e)}), 502
 
 
-# ── LLM / Ollama management ──────────────────────────────────────────────────
-
-
-@app.route("/llm/status", methods=["GET"])
-def llm_status():
-    """Return Ollama status and current config."""
-    return jsonify(get_llm_status())
-
-
-@app.route("/llm/config", methods=["GET"])
-def llm_config_get():
-    """Return current LLM configuration."""
-    return jsonify(load_llm_config())
-
-
-@app.route("/llm/config", methods=["POST"])
-def llm_config_set():
-    """Update LLM configuration (model, ollama_host, ollama_port)."""
-    data = request.get_json(silent=True) or {}
-    cfg = load_llm_config()
-    if "model" in data:
-        cfg["model"] = str(data["model"]).strip()
-    if "ollama_host" in data:
-        cfg["ollama_host"] = str(data["ollama_host"]).strip()
-    if "ollama_port" in data:
-        cfg["ollama_port"] = int(data["ollama_port"])
-    save_llm_config(cfg)
-    return jsonify(cfg)
-
-
-@app.route("/llm/start", methods=["POST"])
-def llm_start():
-    """Start the local Ollama serve process."""
-    ok, msg = start_ollama()
-    # Best-effort firewall rule
-    cfg = load_llm_config()
-    fw_ok, fw_msg = ensure_firewall(cfg["ollama_port"])
-    return jsonify({"ok": ok, "message": msg, "firewall": fw_msg}), 200 if ok else 500
-
-
-@app.route("/llm/stop", methods=["POST"])
-def llm_stop():
-    """Stop the local Ollama serve process."""
-    ok, msg = stop_ollama()
-    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
-
-
-@app.route("/llm/pull", methods=["POST"])
-def llm_pull():
-    """Pull (download) the configured model."""
-    data = request.get_json(silent=True) or {}
-    model = data.get("model") or None
-    ok, msg = pull_model(model)
-    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
-
-
-@app.route("/llm/unload", methods=["POST"])
-def llm_unload():
-    """Unload a model from memory (free GPU/RAM)."""
-    data = request.get_json(silent=True) or {}
-    model = data.get("model") or None
-    ok, msg = unload_model(model)
-    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
-
-
 if __name__ == "__main__":
+    logger.info("Starting Network PC Manager on port 1337")
     app.run(host="0.0.0.0", port=1337)
