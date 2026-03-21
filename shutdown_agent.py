@@ -75,15 +75,15 @@ def setup_logging(log_file):
     return logger
 
 
-def get_shutdown_command():
+def get_shutdown_command(delay_minutes=0):
     """Return the appropriate shutdown command for the current OS."""
     system = platform.system().lower()
     if system == "windows":
-        return ["shutdown", "/s", "/t", str(SHUTDOWN_DELAY_SECONDS)]
-    elif system == "darwin":
-        return ["sudo", "shutdown", "-h", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
-    else:  # Linux and others
-        return ["sudo", "shutdown", "-h", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
+        delay_seconds = delay_minutes * 60 if delay_minutes > 0 else SHUTDOWN_DELAY_SECONDS
+        return ["shutdown", "/s", "/t", str(delay_seconds)]
+    else:  # Linux and macOS
+        delay_str = f"+{delay_minutes}" if delay_minutes > 0 else "+0"
+        return ["sudo", "shutdown", "-h", delay_str]
 
 
 def get_restart_command():
@@ -152,16 +152,30 @@ class ShutdownHandler(BaseHTTPRequestHandler):
         if self.path == "/shutdown":
             if not self._check_auth():
                 return
-            cmd = get_shutdown_command()
+            delay_minutes = 0
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                    delay_minutes = max(0, int(body.get("delay_minutes", 0)))
+                except Exception:
+                    pass
+            cmd = get_shutdown_command(delay_minutes)
             system_name = platform.system()
             hostname = platform.node()
+            if delay_minutes > 0:
+                hours, mins = divmod(delay_minutes, 60)
+                delay_label = f"{hours}h {mins}m" if hours else f"{mins}m"
+                message = f"Shutdown scheduled in {delay_label} on {hostname} ({system_name})"
+            else:
+                message = f"Shutdown initiated on {hostname} ({system_name})"
             self._send_json(
                 200,
                 {
                     "status": "accepted",
-                    "message": f"Shutdown initiated on {hostname} ({system_name})",
+                    "message": message,
                     "command": " ".join(cmd),
-                    "delay_seconds": SHUTDOWN_DELAY_SECONDS,
+                    "delay_minutes": delay_minutes,
                 },
             )
             self.log_message("Shutdown accepted - executing: %s", " ".join(cmd))
