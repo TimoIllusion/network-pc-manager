@@ -84,9 +84,16 @@ Write-Log "[INFO] Port: $Port"
 
 Write-Host ''
 Write-Host '  File sync allows uploading/downloading save games between PCs.'
-Write-Host '  Enter comma-separated directories to allow, or leave empty to disable.'
+Write-Host '  Enter comma-separated directories to allow.'
+$DefaultSyncDir = Join-Path $env:APPDATA 'Road to Vostok'
+Write-Host "  Default: $DefaultSyncDir"
 Write-Host '  Example: C:\Users\You\AppData\Local\GameName\Saves'
-$SyncDirs = Read-Host 'Sync directories (comma-separated, empty to skip)'
+$SyncDirs = Read-Host 'Sync directories (comma-separated, leave empty to use default, type DISABLE to disable)'
+if (-not $SyncDirs) {
+    $SyncDirs = $DefaultSyncDir
+} elseif ($SyncDirs.Trim().ToUpper() -eq 'DISABLE') {
+    $SyncDirs = ''
+}
 if ($SyncDirs) {
     Write-Log "[INFO] Sync directories: $SyncDirs"
     Write-Host "[INFO] File sync enabled for: $SyncDirs"
