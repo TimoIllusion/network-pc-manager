@@ -1138,19 +1138,18 @@
 
         function renderProfilePaths(paths) {
             const container = document.getElementById('profile-paths-container');
-            const onlineDevices = devices.filter(d => d.online || paths[d.mac]);
-            if (!onlineDevices.length) {
-                container.innerHTML = '<div class="no-profiles">No devices found. Scan the network first.</div>';
-                return;
-            }
-            container.innerHTML = onlineDevices.map(d => {
-                const label = d.customName ? `${d.customName} (${d.name})` : d.name;
-                const val = paths[d.mac] || '';
-                return `<div class="profile-path-group">
-                    <span class="label">${label}</span>
-                    <input type="text" class="profile-path-input" data-mac="${d.mac}" value="${val}" placeholder="e.g. C:\\Users\\...\\SaveGames">
-                </div>`;
-            }).join('');
+            // Hardcoded save path for now (avoids huge device lists on mobile).
+            container.innerHTML = `
+                <div class="sync-status" style="margin-top: 8px;">
+                    <div class="meta-line">
+                        <span>Save path</span>
+                        <span class="meta-value">C:\\Users\\Timo\\AppData\\Roaming\\Road to Vostok</span>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.4;">
+                        This is currently fixed for all devices.
+                    </div>
+                </div>
+            `;
         }
 
         function closeProfileModal(e) {
@@ -1163,14 +1162,8 @@
             const editId = document.getElementById('profile-edit-id').value;
             if (!name) return showToast('Profile name is required', 'error');
 
+            // Backend uses a hardcoded save path for now.
             const paths = {};
-            document.querySelectorAll('.profile-path-input').forEach(input => {
-                const mac = input.dataset.mac;
-                const path = input.value.trim();
-                if (path) paths[mac] = path;
-            });
-
-            if (!Object.keys(paths).length) return showToast('At least one device path is required', 'error');
 
             const body = { name, paths };
             if (editId) body.id = editId;

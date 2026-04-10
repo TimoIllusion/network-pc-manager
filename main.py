@@ -19,6 +19,7 @@ from sync_profiles import (
 
 DEFAULT_AGENT_PORT = int(os.environ.get("NETWORK_PC_MANAGER_AGENT_PORT", "9876"))
 SAVES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saves")
+DEFAULT_SAVEGAME_PATH = r"C:\Users\Timo\AppData\Roaming\Road to Vostok"
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 LOG_FILE = os.path.join(
@@ -269,13 +270,13 @@ def create_sync_profile():
     """Create or update a sync profile."""
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
+    # Paths are currently fixed to DEFAULT_SAVEGAME_PATH, so we don't require
+    # per-device configuration. (We still persist paths for forward-compat.)
     paths = data.get("paths") or {}
     profile_id = data.get("id")
 
     if not name:
         return jsonify({"error": "Name is required"}), 400
-    if not paths:
-        return jsonify({"error": "At least one device path is required"}), 400
 
     if profile_id:
         updated = update_profile(profile_id, name=name, paths=paths)
@@ -327,9 +328,7 @@ def sync_upload():
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
 
-    source_path = profile["paths"].get(source_mac)
-    if not source_path:
-        return jsonify({"error": f"No path configured for device {source_mac}"}), 400
+    source_path = profile.get("paths", {}).get(source_mac) or DEFAULT_SAVEGAME_PATH
 
     # Look up device IP
     registry = load_registry()
@@ -416,9 +415,7 @@ def sync_download():
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
 
-    dest_path = profile["paths"].get(dest_mac)
-    if not dest_path:
-        return jsonify({"error": f"No path configured for device {dest_mac}"}), 400
+    dest_path = profile.get("paths", {}).get(dest_mac) or DEFAULT_SAVEGAME_PATH
 
     # Find the tar.gz to send
     if version_id == "current":
