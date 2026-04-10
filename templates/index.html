@@ -262,9 +262,139 @@
         .toast.error { border-color: var(--danger); color: #fca5a5; }
         .toast.success { border-color: var(--success); color: #86efac; }
 
+        /* Sync Section */
+        .sync-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 28px 0;
+        }
+
+        .sync-section h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .sync-subtitle {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+
+        .sync-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .sync-row select { flex: 1; }
+
+        .sync-status {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .sync-status .meta-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .sync-status .meta-line:last-child { margin-bottom: 0; }
+
+        .sync-status .meta-value {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .sync-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .sync-buttons .btn { flex: 1; font-size: 14px; padding: 10px; }
+
+        .btn-upload { background: #0ea5e9; }
+        .btn-download { background: var(--success); }
+
+        .version-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+        }
+
+        .version-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .version-item:last-child { border-bottom: none; }
+
+        .version-item.current { background: rgba(99, 102, 241, 0.08); }
+
+        .version-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .version-time {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .version-meta {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .version-actions .btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .version-badge {
+            font-size: 10px;
+            background: var(--primary);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 600;
+        }
+
+        .modal-content.wide { max-width: 440px; }
+
+        .profile-path-group {
+            margin-bottom: 12px;
+            text-align: left;
+        }
+
+        .profile-path-group .label { margin-bottom: 4px; }
+
+        .no-profiles, .no-versions {
+            text-align: center;
+            color: var(--muted);
+            padding: 16px;
+            font-size: 13px;
+        }
+
         @media (max-width: 480px) {
             .container { padding: 24px 18px; }
             h1 { font-size: 20px; }
+            .sync-buttons { flex-direction: column; }
         }
     </style>
 </head>
@@ -325,6 +455,73 @@
             </button>
         </div>
 
+        <!-- Save Game Sync Section -->
+        <hr class="sync-divider">
+        <div class="sync-section">
+            <h2>Save Game Sync</h2>
+            <p class="sync-subtitle">Upload &amp; download saves via central server</p>
+
+            <span class="label">Profile</span>
+            <div class="sync-row">
+                <select id="sync-profile-select" onchange="onSyncProfileChange()">
+                    <option value="">-- Select Profile --</option>
+                </select>
+                <button class="btn-icon" onclick="openProfileModal()" title="Add profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <button class="btn-icon" onclick="openEditProfileModal()" title="Edit profile" id="edit-profile-btn" style="display:none">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
+                <button class="btn-icon" onclick="deleteCurrentProfile()" title="Delete profile" id="delete-profile-btn" style="display:none">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+                </button>
+            </div>
+
+            <div id="sync-status" class="sync-status" style="display:none">
+                <div class="meta-line">
+                    <span>Last Upload</span>
+                    <span class="meta-value" id="sync-last-upload">--</span>
+                </div>
+                <div class="meta-line">
+                    <span>Source</span>
+                    <span class="meta-value" id="sync-last-source">--</span>
+                </div>
+                <div class="meta-line">
+                    <span>Size</span>
+                    <span class="meta-value" id="sync-save-size">--</span>
+                </div>
+            </div>
+
+            <span class="label">Device</span>
+            <div class="sync-row">
+                <select id="sync-device-select">
+                    {% for device in devices %}
+                    {% if device.online %}
+                    <option value="{{ device.mac }}" data-ip="{{ device.ip }}">
+                        {% if device.custom_name %}{{ device.custom_name }}{% else %}{{ device.name }}{% endif %}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="sync-buttons">
+                <button class="btn btn-upload" id="sync-upload-btn" onclick="syncUpload()" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"></polyline><line x1="12" y1="6" x2="12" y2="18"></line></svg>
+                    Upload to Server
+                </button>
+                <button class="btn btn-download" id="sync-download-btn" onclick="syncDownload()" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"></polyline><line x1="12" y1="18" x2="12" y2="6"></line></svg>
+                    Download to PC
+                </button>
+            </div>
+
+            <span class="label">Version History</span>
+            <div id="sync-versions" class="version-list">
+                <div class="no-versions">Select a profile to view versions</div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal -->
@@ -382,6 +579,48 @@
             <div class="modal-buttons">
                 <button class="btn btn-modal btn-cancel" onclick="document.getElementById('rename-modal').classList.remove('active')">Cancel</button>
                 <button class="btn btn-modal btn-wake" onclick="saveRename()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal-overlay" onclick="closeProfileModal(event)">
+        <div class="modal-content wide" onclick="event.stopPropagation()">
+            <div class="modal-title" id="profile-modal-title">Add Sync Profile</div>
+            <div class="modal-desc">Configure a game name and save paths per device.</div>
+            <div class="profile-path-group">
+                <span class="label">Game / Profile Name</span>
+                <input type="text" id="profile-name-input" placeholder="e.g. Elden Ring">
+            </div>
+            <div id="profile-paths-container"></div>
+            <input type="hidden" id="profile-edit-id" value="">
+            <div class="modal-buttons" style="margin-top: 16px;">
+                <button class="btn btn-modal btn-cancel" onclick="closeProfileModal()">Cancel</button>
+                <button class="btn btn-modal btn-wake" onclick="saveProfile()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Version Modal -->
+    <div id="version-download-modal" class="modal-overlay" onclick="closeVersionDownloadModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-title">Download Save to PC</div>
+            <div class="modal-desc" id="version-download-desc">Select target device.</div>
+            <div style="margin-bottom: 16px; text-align: left;">
+                <span class="label">Device</span>
+                <select id="version-download-device">
+                    {% for device in devices %}
+                    {% if device.online %}
+                    <option value="{{ device.mac }}" data-ip="{{ device.ip }}">
+                        {% if device.custom_name %}{{ device.custom_name }}{% else %}{{ device.name }}{% endif %}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-modal btn-cancel" onclick="closeVersionDownloadModal()">Cancel</button>
+                <button class="btn btn-modal btn-download" onclick="confirmVersionDownload()">Download</button>
             </div>
         </div>
     </div>
@@ -651,6 +890,343 @@
                     .catch(e => showToast(e.message, 'error'));
             }
         }
+        // ── Save Game Sync ──────────────────────────────────────────────────
+
+        let syncProfiles = [];
+        let syncVersions = [];
+        let pendingVersionDownload = null;
+
+        function loadSyncProfiles() {
+            fetch('/sync-profiles')
+                .then(r => r.json())
+                .then(data => {
+                    syncProfiles = data;
+                    const select = document.getElementById('sync-profile-select');
+                    const currentVal = select.value;
+                    while (select.options.length > 1) select.remove(1);
+                    data.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        select.appendChild(opt);
+                    });
+                    if (currentVal && data.find(p => p.id === currentVal)) {
+                        select.value = currentVal;
+                    }
+                    onSyncProfileChange();
+                })
+                .catch(() => {});
+        }
+
+        function onSyncProfileChange() {
+            const profileId = document.getElementById('sync-profile-select').value;
+            const editBtn = document.getElementById('edit-profile-btn');
+            const deleteBtn = document.getElementById('delete-profile-btn');
+            const uploadBtn = document.getElementById('sync-upload-btn');
+            const downloadBtn = document.getElementById('sync-download-btn');
+            const statusEl = document.getElementById('sync-status');
+
+            if (!profileId) {
+                editBtn.style.display = 'none';
+                deleteBtn.style.display = 'none';
+                uploadBtn.disabled = true;
+                downloadBtn.disabled = true;
+                statusEl.style.display = 'none';
+                document.getElementById('sync-versions').innerHTML =
+                    '<div class="no-versions">Select a profile to view versions</div>';
+                return;
+            }
+
+            editBtn.style.display = '';
+            deleteBtn.style.display = '';
+            uploadBtn.disabled = false;
+
+            const profile = syncProfiles.find(p => p.id === profileId);
+            if (profile && profile.has_save) {
+                statusEl.style.display = '';
+                document.getElementById('sync-last-upload').textContent =
+                    profile.last_upload ? new Date(profile.last_upload).toLocaleString() : '--';
+                document.getElementById('sync-last-source').textContent = profile.last_source || '--';
+                document.getElementById('sync-save-size').textContent =
+                    profile.save_size ? formatSize(profile.save_size) : '--';
+                downloadBtn.disabled = false;
+            } else {
+                statusEl.style.display = 'none';
+                downloadBtn.disabled = true;
+            }
+
+            loadSyncVersions(profileId);
+        }
+
+        function loadSyncVersions(profileId) {
+            fetch(`/sync/versions?profile_id=${encodeURIComponent(profileId)}`)
+                .then(r => r.json())
+                .then(data => {
+                    syncVersions = data;
+                    renderVersions(data);
+                })
+                .catch(() => {
+                    document.getElementById('sync-versions').innerHTML =
+                        '<div class="no-versions">Failed to load versions</div>';
+                });
+        }
+
+        function renderVersions(versions) {
+            const container = document.getElementById('sync-versions');
+            if (!versions.length) {
+                container.innerHTML = '<div class="no-versions">No saves uploaded yet</div>';
+                return;
+            }
+            container.innerHTML = versions.map(v => {
+                const time = v.timestamp ? new Date(v.timestamp).toLocaleString() : v.id;
+                const size = formatSize(v.size);
+                const badge = v.is_current ? '<span class="version-badge">LATEST</span>' : '';
+                const source = v.source_device ? ` from ${v.source_device}` : '';
+                return `<div class="version-item${v.is_current ? ' current' : ''}">
+                    <div class="version-info">
+                        <div class="version-time">${time}${badge}</div>
+                        <div class="version-meta">${size}${source}</div>
+                    </div>
+                    <div class="version-actions">
+                        <button class="btn btn-download" onclick="startVersionDownload('${v.id}', '${time}')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"></polyline><line x1="12" y1="18" x2="12" y2="6"></line></svg>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            let size = bytes;
+            while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+            return `${size.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+        }
+
+        function getSyncPassphrase() {
+            return document.getElementById('passphrase-input').value;
+        }
+
+        function getSyncPort() {
+            return document.getElementById('port-input').value.trim() || '9876';
+        }
+
+        function syncUpload() {
+            const profileId = document.getElementById('sync-profile-select').value;
+            const mac = document.getElementById('sync-device-select').value;
+            const passphrase = getSyncPassphrase();
+            if (!profileId || !mac) return showToast('Select a profile and device', 'error');
+            if (!passphrase) return showToast('Enter passphrase in the fields above', 'error');
+
+            const btn = document.getElementById('sync-upload-btn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+
+            fetch('/sync/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    profile_id: profileId,
+                    source_mac: mac,
+                    passphrase: passphrase,
+                    port: getSyncPort(),
+                }),
+            })
+                .then(r => r.json().then(d => ({ data: d, ok: r.ok })))
+                .then(({ data, ok }) => {
+                    if (ok) {
+                        showToast(data.message || 'Upload complete', 'success');
+                        loadSyncProfiles();
+                    } else {
+                        showToast(data.error || 'Upload failed', 'error');
+                    }
+                })
+                .catch(e => showToast(`Upload error: ${e.message}`, 'error'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"></polyline><line x1="12" y1="6" x2="12" y2="18"></line></svg> Upload to Server';
+                });
+        }
+
+        function syncDownload(versionId) {
+            versionId = versionId || 'current';
+            const profileId = document.getElementById('sync-profile-select').value;
+            const mac = document.getElementById('sync-device-select').value;
+            const passphrase = getSyncPassphrase();
+            if (!profileId || !mac) return showToast('Select a profile and device', 'error');
+            if (!passphrase) return showToast('Enter passphrase in the fields above', 'error');
+
+            const btn = document.getElementById('sync-download-btn');
+            btn.disabled = true;
+            btn.textContent = 'Downloading...';
+
+            fetch('/sync/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    profile_id: profileId,
+                    dest_mac: mac,
+                    passphrase: passphrase,
+                    port: getSyncPort(),
+                    version_id: versionId,
+                }),
+            })
+                .then(r => r.json().then(d => ({ data: d, ok: r.ok })))
+                .then(({ data, ok }) => {
+                    if (ok) {
+                        showToast(data.message || 'Download complete', 'success');
+                    } else {
+                        showToast(data.error || 'Download failed', 'error');
+                    }
+                })
+                .catch(e => showToast(`Download error: ${e.message}`, 'error'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"></polyline><line x1="12" y1="18" x2="12" y2="6"></line></svg> Download to PC';
+                });
+        }
+
+        function startVersionDownload(versionId, label) {
+            pendingVersionDownload = versionId;
+            document.getElementById('version-download-desc').textContent =
+                `Download "${label}" save to which device?`;
+            // Copy the current sync device selection
+            document.getElementById('version-download-device').value =
+                document.getElementById('sync-device-select').value;
+            document.getElementById('version-download-modal').classList.add('active');
+        }
+
+        function closeVersionDownloadModal(e) {
+            if (e && e.currentTarget !== e.target) return;
+            document.getElementById('version-download-modal').classList.remove('active');
+        }
+
+        function confirmVersionDownload() {
+            closeVersionDownloadModal();
+            const origSelect = document.getElementById('sync-device-select');
+            const modalSelect = document.getElementById('version-download-device');
+            // Temporarily set the sync device to the modal selection
+            const origVal = origSelect.value;
+            origSelect.value = modalSelect.value;
+            syncDownload(pendingVersionDownload);
+            origSelect.value = origVal;
+        }
+
+        // ── Profile CRUD ──────────────────────────────────────────────────
+
+        function openProfileModal() {
+            document.getElementById('profile-modal-title').textContent = 'Add Sync Profile';
+            document.getElementById('profile-name-input').value = '';
+            document.getElementById('profile-edit-id').value = '';
+            renderProfilePaths({});
+            document.getElementById('profile-modal').classList.add('active');
+            setTimeout(() => document.getElementById('profile-name-input').focus(), 50);
+        }
+
+        function openEditProfileModal() {
+            const profileId = document.getElementById('sync-profile-select').value;
+            const profile = syncProfiles.find(p => p.id === profileId);
+            if (!profile) return;
+            document.getElementById('profile-modal-title').textContent = 'Edit Sync Profile';
+            document.getElementById('profile-name-input').value = profile.name;
+            document.getElementById('profile-edit-id').value = profile.id;
+            renderProfilePaths(profile.paths || {});
+            document.getElementById('profile-modal').classList.add('active');
+        }
+
+        function renderProfilePaths(paths) {
+            const container = document.getElementById('profile-paths-container');
+            const onlineDevices = devices.filter(d => d.online || paths[d.mac]);
+            if (!onlineDevices.length) {
+                container.innerHTML = '<div class="no-profiles">No devices found. Scan the network first.</div>';
+                return;
+            }
+            container.innerHTML = onlineDevices.map(d => {
+                const label = d.customName ? `${d.customName} (${d.name})` : d.name;
+                const val = paths[d.mac] || '';
+                return `<div class="profile-path-group">
+                    <span class="label">${label}</span>
+                    <input type="text" class="profile-path-input" data-mac="${d.mac}" value="${val}" placeholder="e.g. C:\\Users\\...\\SaveGames">
+                </div>`;
+            }).join('');
+        }
+
+        function closeProfileModal(e) {
+            if (e && e.currentTarget !== e.target) return;
+            document.getElementById('profile-modal').classList.remove('active');
+        }
+
+        function saveProfile() {
+            const name = document.getElementById('profile-name-input').value.trim();
+            const editId = document.getElementById('profile-edit-id').value;
+            if (!name) return showToast('Profile name is required', 'error');
+
+            const paths = {};
+            document.querySelectorAll('.profile-path-input').forEach(input => {
+                const mac = input.dataset.mac;
+                const path = input.value.trim();
+                if (path) paths[mac] = path;
+            });
+
+            if (!Object.keys(paths).length) return showToast('At least one device path is required', 'error');
+
+            const body = { name, paths };
+            if (editId) body.id = editId;
+
+            fetch('/sync-profiles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            })
+                .then(r => r.json().then(d => ({ data: d, ok: r.ok })))
+                .then(({ data, ok }) => {
+                    if (ok && !data.error) {
+                        closeProfileModal();
+                        showToast(editId ? 'Profile updated' : 'Profile created', 'success');
+                        // Reload and select the new/updated profile
+                        fetch('/sync-profiles').then(r => r.json()).then(profiles => {
+                            syncProfiles = profiles;
+                            const select = document.getElementById('sync-profile-select');
+                            while (select.options.length > 1) select.remove(1);
+                            profiles.forEach(p => {
+                                const opt = document.createElement('option');
+                                opt.value = p.id;
+                                opt.textContent = p.name;
+                                select.appendChild(opt);
+                            });
+                            select.value = data.id;
+                            onSyncProfileChange();
+                        });
+                    } else {
+                        showToast(data.error || 'Save failed', 'error');
+                    }
+                })
+                .catch(e => showToast(`Error: ${e.message}`, 'error'));
+        }
+
+        function deleteCurrentProfile() {
+            const profileId = document.getElementById('sync-profile-select').value;
+            if (!profileId) return;
+            const profile = syncProfiles.find(p => p.id === profileId);
+            if (!confirm(`Delete profile "${profile?.name || profileId}" and all its saved data?`)) return;
+
+            fetch(`/sync-profiles/${encodeURIComponent(profileId)}`, { method: 'DELETE' })
+                .then(r => r.json().then(d => ({ data: d, ok: r.ok })))
+                .then(({ data, ok }) => {
+                    if (ok) {
+                        showToast('Profile deleted', 'success');
+                        loadSyncProfiles();
+                    } else {
+                        showToast(data.error || 'Delete failed', 'error');
+                    }
+                })
+                .catch(e => showToast(`Error: ${e.message}`, 'error'));
+        }
+
+        // Load sync profiles on page load
+        window.addEventListener('load', loadSyncProfiles);
     </script>
 </body>
 </html>
