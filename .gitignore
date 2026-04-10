@@ -12,6 +12,8 @@ dist/
 
 # Runtime data
 devices.json
+sync_profiles.json
+saves/
 
 # OS
 .DS_Store

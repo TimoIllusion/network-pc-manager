@@ -32,6 +32,20 @@ fi
 read -rp "Enter port [9876]: " PORT
 PORT="${PORT:-9876}"
 
+echo
+echo "  File sync allows uploading/downloading save games between PCs."
+echo "  Enter comma-separated directories to allow, or leave empty to disable."
+echo "  Example: /home/user/saves,/home/user/.local/share/GameName"
+read -rp "Sync directories (comma-separated, empty to skip): " SYNC_DIRS
+
+SYNC_DIRS_ARG=""
+SYNC_DIRS_ENV=""
+if [ -n "$SYNC_DIRS" ]; then
+    SYNC_DIRS_ARG="--sync-dirs \"${SYNC_DIRS}\""
+    SYNC_DIRS_ENV="Environment=NETWORK_PC_MANAGER_SYNC_DIRS=${SYNC_DIRS}"
+    info "File sync enabled for: $SYNC_DIRS"
+fi
+
 # ─── Install based on init system ────────────────────────────────────────────
 PYTHON3_PATH="$(command -v python3)"
 
@@ -66,7 +80,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
     <key>EnvironmentVariables</key>
     <dict>
         <key>NETWORK_PC_MANAGER_AGENT_PASSPHRASE</key>
-        <string>${PASSPHRASE}</string>
+        <string>${PASSPHRASE}</string>${SYNC_DIRS:+
+        <key>NETWORK_PC_MANAGER_SYNC_DIRS</key>
+        <string>${SYNC_DIRS}</string>}
     </dict>
     <key>RunAtLoad</key>
     <true/>
@@ -106,6 +122,7 @@ After=network.target
 [Service]
 Type=simple
 Environment=NETWORK_PC_MANAGER_AGENT_PASSPHRASE=${PASSPHRASE}
+${SYNC_DIRS_ENV:+${SYNC_DIRS_ENV}}
 ExecStart=${PYTHON3_PATH} ${AGENT_SCRIPT} --port ${PORT}
 Restart=on-failure
 RestartSec=5
@@ -121,7 +138,7 @@ EOF
 else
     # ── Fallback: cron @reboot ──
     warn "No systemd or launchd found. Falling back to cron."
-    CRON_CMD="@reboot NETWORK_PC_MANAGER_AGENT_PASSPHRASE='${PASSPHRASE}' ${PYTHON3_PATH} ${AGENT_SCRIPT} --port ${PORT}"
+    CRON_CMD="@reboot NETWORK_PC_MANAGER_AGENT_PASSPHRASE='${PASSPHRASE}'${SYNC_DIRS:+ NETWORK_PC_MANAGER_SYNC_DIRS='${SYNC_DIRS}'} ${PYTHON3_PATH} ${AGENT_SCRIPT} --port ${PORT}"
     if crontab -l 2>/dev/null | grep -qF "shutdown_agent.py"; then
         warn "Cron entry already exists – replacing."
         crontab -l 2>/dev/null | grep -vF "shutdown_agent.py" | { cat; echo "$CRON_CMD"; } | crontab -

@@ -18,15 +18,19 @@ The agent listens for POST requests to /shutdown with the header:
 """
 
 import argparse
+import datetime
 import hashlib
 import hmac
+import io
 import json
 import logging
 import logging.handlers
 import os
 import platform
+import shutil
 import subprocess
 import sys
+import tarfile
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -106,6 +110,7 @@ class ShutdownHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the shutdown agent."""
 
     passphrase = ""
+    sync_dirs: list[str] = []
 
     def log_message(self, format, *args):
         """Override to route HTTP request logs through the logging module."""
@@ -133,6 +138,156 @@ class ShutdownHandler(BaseHTTPRequestHandler):
             self._send_json(403, {"error": "Invalid passphrase"})
             return False
         return True
+
+    def _send_binary(self, status_code, content_type, data):
+        """Send a binary response."""
+        self.send_response(status_code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _read_json_body(self) -> dict:
+        """Read and parse JSON from the request body."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        if not content_length:
+            return {}
+        return json.loads(self.rfile.read(content_length).decode("utf-8"))
+
+    def _is_path_allowed(self, path: str) -> bool:
+        """Check if the resolved path is under one of the allowed sync dirs."""
+        if not self.sync_dirs:
+            return False
+        try:
+            real = os.path.realpath(path)
+        except (OSError, ValueError):
+            return False
+        for allowed in self.sync_dirs:
+            allowed_real = os.path.realpath(allowed)
+            # Ensure the path is the allowed dir itself or a child of it
+            if real == allowed_real or real.startswith(allowed_real + os.sep):
+                return True
+        return False
+
+    def _handle_files_list(self):
+        """List files in a directory."""
+        if not self._check_auth():
+            return
+        try:
+            body = self._read_json_body()
+            path = body.get("path", "")
+        except Exception:
+            self._send_json(400, {"error": "Invalid JSON body"})
+            return
+        if not path:
+            self._send_json(400, {"error": "path is required"})
+            return
+        if not self._is_path_allowed(path):
+            self._send_json(403, {"error": "Path not in allowed sync directories"})
+            return
+        if not os.path.isdir(path):
+            self._send_json(404, {"error": "Directory not found"})
+            return
+        entries = []
+        for name in sorted(os.listdir(path)):
+            full = os.path.join(path, name)
+            try:
+                st = os.stat(full)
+                entries.append({
+                    "name": name,
+                    "size": st.st_size,
+                    "modified": datetime.datetime.fromtimestamp(
+                        st.st_mtime, tz=datetime.timezone.utc
+                    ).isoformat(),
+                    "is_dir": os.path.isdir(full),
+                })
+            except OSError:
+                continue
+        self._send_json(200, {"path": path, "files": entries})
+
+    def _handle_files_download(self):
+        """Package a directory as tar.gz and send it."""
+        if not self._check_auth():
+            return
+        try:
+            body = self._read_json_body()
+            path = body.get("path", "")
+        except Exception:
+            self._send_json(400, {"error": "Invalid JSON body"})
+            return
+        if not path:
+            self._send_json(400, {"error": "path is required"})
+            return
+        if not self._is_path_allowed(path):
+            self._send_json(403, {"error": "Path not in allowed sync directories"})
+            return
+        if not os.path.isdir(path):
+            self._send_json(404, {"error": "Directory not found"})
+            return
+        buf = io.BytesIO()
+        try:
+            with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+                for root, dirs, files in os.walk(path):
+                    for fname in files:
+                        full = os.path.join(root, fname)
+                        arcname = os.path.relpath(full, path)
+                        tar.add(full, arcname=arcname)
+        except Exception as e:
+            self._send_json(500, {"error": f"Failed to create archive: {e}"})
+            return
+        data = buf.getvalue()
+        self.log_message("Files download: %s (%d bytes)", path, len(data))
+        self._send_binary(200, "application/gzip", data)
+
+    def _handle_files_upload(self):
+        """Receive a tar.gz and extract it to the specified directory."""
+        if not self._check_auth():
+            return
+        path = self.headers.get("X-Sync-Path", "").strip()
+        if not path:
+            self._send_json(400, {"error": "X-Sync-Path header is required"})
+            return
+        if not self._is_path_allowed(path):
+            self._send_json(403, {"error": "Path not in allowed sync directories"})
+            return
+        content_length = int(self.headers.get("Content-Length", 0))
+        if not content_length:
+            self._send_json(400, {"error": "Empty body"})
+            return
+        raw = self.rfile.read(content_length)
+        # Create backup of existing directory before overwriting
+        if os.path.isdir(path):
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"{path}_backup_{ts}"
+            try:
+                shutil.copytree(path, backup_path)
+                self.log_message("Backup created: %s", backup_path)
+            except Exception as e:
+                self.log_message("Backup failed (continuing anyway): %s", str(e))
+        os.makedirs(path, exist_ok=True)
+        buf = io.BytesIO(raw)
+        try:
+            with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+                # Security: check for path traversal in archive members
+                for member in tar.getmembers():
+                    member_path = os.path.normpath(os.path.join(path, member.name))
+                    if not member_path.startswith(os.path.realpath(path)):
+                        self._send_json(400, {"error": "Archive contains unsafe paths"})
+                        return
+                tar.extractall(path)
+        except tarfile.TarError as e:
+            self._send_json(400, {"error": f"Invalid tar.gz archive: {e}"})
+            return
+        except Exception as e:
+            self._send_json(500, {"error": f"Extraction failed: {e}"})
+            return
+        file_count = sum(len(files) for _, _, files in os.walk(path)) if os.path.isdir(path) else 0
+        self.log_message("Files uploaded to %s (%d bytes, %d files)", path, content_length, file_count)
+        self._send_json(200, {
+            "status": "ok",
+            "message": f"Extracted to {path}",
+            "bytes_received": content_length,
+        })
 
     def do_GET(self):
         if self.path == "/health":
@@ -209,6 +364,12 @@ class ShutdownHandler(BaseHTTPRequestHandler):
                     subprocess.Popen(cmd)
             except Exception as e:
                 self.log_message("Restart command failed: %s", str(e))
+        elif self.path == "/files/list":
+            self._handle_files_list()
+        elif self.path == "/files/download":
+            self._handle_files_download()
+        elif self.path == "/files/upload":
+            self._handle_files_upload()
         else:
             self._send_json(404, {"error": "Not found"})
 
@@ -225,6 +386,7 @@ Examples:
 
 Environment variables:
   NETWORK_PC_MANAGER_AGENT_PASSPHRASE   Alternative to --passphrase flag
+  NETWORK_PC_MANAGER_SYNC_DIRS          Comma-separated allowed directories for file sync
 """,
     )
     parser.add_argument(
@@ -242,6 +404,11 @@ Environment variables:
         "--bind",
         default="0.0.0.0",
         help="Address to bind to (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--sync-dirs",
+        default=os.environ.get("NETWORK_PC_MANAGER_SYNC_DIRS", ""),
+        help="Comma-separated list of directories allowed for file sync (or set NETWORK_PC_MANAGER_SYNC_DIRS env var)",
     )
     parser.add_argument(
         "--log-file",
@@ -265,6 +432,9 @@ Environment variables:
     logger = setup_logging(args.log_file)
 
     ShutdownHandler.passphrase = args.passphrase
+    ShutdownHandler.sync_dirs = [
+        d.strip() for d in args.sync_dirs.split(",") if d.strip()
+    ]
 
     server = HTTPServer((args.bind, args.port), ShutdownHandler)
     logger.info("Network PC Manager Shutdown Agent %s starting", __version__)
@@ -273,6 +443,11 @@ Environment variables:
     logger.info("  Listening: http://%s:%s", args.bind, args.port)
     logger.info("  Log file : %s", args.log_file)
     logger.info("  Endpoints: GET /health, POST /shutdown, POST /restart")
+    if ShutdownHandler.sync_dirs:
+        logger.info("  Sync dirs: %s", ", ".join(ShutdownHandler.sync_dirs))
+        logger.info("  File sync: POST /files/list, /files/download, /files/upload")
+    else:
+        logger.info("  File sync: disabled (no --sync-dirs configured)")
 
     try:
         server.serve_forever()

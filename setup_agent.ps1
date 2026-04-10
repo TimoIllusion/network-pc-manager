@@ -102,6 +102,16 @@ $PortInput = Read-Host 'Enter port [9876]'
 $Port = if ($PortInput -match '^\d+$') { [int]$PortInput } else { 9876 }
 Write-Log "[INFO] Port: $Port"
 
+Write-Host ''
+Write-Host '  File sync allows uploading/downloading save games between PCs.'
+Write-Host '  Enter comma-separated directories to allow, or leave empty to disable.'
+Write-Host '  Example: C:\Users\You\AppData\Local\GameName\Saves'
+$SyncDirs = Read-Host 'Sync directories (comma-separated, empty to skip)'
+if ($SyncDirs) {
+    Write-Log "[INFO] Sync directories: $SyncDirs"
+    Write-Host "[INFO] File sync enabled for: $SyncDirs"
+}
+
 # ── Environment variable ──────────────────────────────────────────────────────
 Write-Log '[INFO] Setting system environment variable NETWORK_PC_MANAGER_AGENT_PASSPHRASE...'
 try {
@@ -112,6 +122,18 @@ try {
 } catch {
     Write-Log "[ERROR] Failed to set environment variable: $_"
     Write-Host "[WARN] Could not set environment variable: $_" -ForegroundColor Yellow
+}
+
+if ($SyncDirs) {
+    Write-Log '[INFO] Setting system environment variable NETWORK_PC_MANAGER_SYNC_DIRS...'
+    try {
+        [System.Environment]::SetEnvironmentVariable(
+            'NETWORK_PC_MANAGER_SYNC_DIRS', $SyncDirs, 'Machine')
+        Write-Log '[INFO] Sync dirs environment variable set - OK'
+    } catch {
+        Write-Log "[WARN] Could not set sync dirs environment variable: $_"
+        Write-Host "[WARN] Could not set sync dirs variable: $_" -ForegroundColor Yellow
+    }
 }
 
 # ── Scheduled task ────────────────────────────────────────────────────────────
