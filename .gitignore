@@ -13,6 +13,7 @@ dist/
 # Runtime data
 devices.json
 sync_profiles.json
+settings.json
 saves/
 
 # OS

@@ -78,6 +78,89 @@
             flex: 1;
         }
 
+        .quick-list {
+            margin-bottom: 18px;
+        }
+
+        .quick-list-header {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .quick-list-header svg {
+            transition: transform 0.15s;
+        }
+
+        .quick-list.collapsed .quick-list-header svg {
+            transform: rotate(-90deg);
+        }
+
+        .quick-list.collapsed .quick-list-body {
+            display: none;
+        }
+
+        .quick-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            margin-top: 6px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: border-color 0.15s;
+        }
+
+        .quick-item:hover {
+            border-color: var(--primary);
+        }
+
+        .quick-item.selected {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .quick-item .status-dot {
+            margin-left: 0;
+            flex-shrink: 0;
+        }
+
+        .quick-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .quick-pin {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            transition: color 0.15s;
+        }
+
+        .quick-pin:hover {
+            color: var(--text);
+        }
+
+        .quick-pin.pinned {
+            color: var(--primary);
+        }
+
         .btn-icon {
             background: var(--bg);
             border: 1px solid var(--border);
@@ -403,6 +486,14 @@
         <h1>PC Control Panel</h1>
         <p class="subtitle">Wake-on-LAN, Remote Shutdown &amp; Restart</p>
 
+        <div class="quick-list" id="quick-list">
+            <div class="quick-list-header" onclick="toggleQuickList()">
+                <span>Frequent</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="quick-list-body" id="quick-list-body"></div>
+        </div>
+
         <span class="label">Device <span id="agent-status"></span></span>
         <div class="select-row">
             <select id="device-select" onchange="onDeviceChange()">
@@ -636,13 +727,19 @@
         let currentDelayMinutes = 0;
         let devices = [
             {% for device in devices %}
-            { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}", online: {{ 'true' if device.online else 'false' }}, customName: "{{ device.custom_name }}" },
+            { name: "{{ device.name }}", mac: "{{ device.mac }}", ip: "{{ device.ip }}", online: {{ 'true' if device.online else 'false' }}, customName: "{{ device.custom_name }}", useCount: {{ device.use_count }}, pinned: {{ 'true' if device.pinned else 'false' }} },
             {% endfor %}
         ];
+        const lastSelected = "{{ last_selected }}";
 
         window.onload = () => {
+            if (localStorage.getItem('quickListCollapsed') === 'true') {
+                document.getElementById('quick-list').classList.add('collapsed');
+            }
+            renderQuickList();
             if (devices.length > 0) {
-                document.getElementById('device-select').value = devices[0].mac;
+                const select = document.getElementById('device-select');
+                select.value = devices.some(d => d.mac === lastSelected) ? lastSelected : devices[0].mac;
                 onDeviceChange();
             }
         };
@@ -665,6 +762,118 @@
                     else document.getElementById('agent-status').innerHTML =
                         '<span class="status-dot offline" title="Device offline"></span>';
                 }
+                fetch('/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mac: select.value }),
+                }).catch(() => {});
+            }
+            renderQuickList();
+        }
+
+        function sortDevices() {
+            devices.sort((a, b) =>
+                (b.pinned - a.pinned) ||
+                (b.useCount - a.useCount) ||
+                ((a.customName ? 0 : 1) - (b.customName ? 0 : 1)) ||
+                a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        }
+
+        function pinIcon(filled) {
+            return `<svg width="14" height="14" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z"/></svg>`;
+        }
+
+        function renderQuickList() {
+            const list = document.getElementById('quick-list');
+            const body = document.getElementById('quick-list-body');
+            if (devices.length === 0) {
+                list.style.display = 'none';
+                return;
+            }
+            list.style.display = '';
+            const selected = document.getElementById('device-select').value;
+            body.innerHTML = '';
+            devices.slice(0, 5).forEach(d => {
+                const row = document.createElement('div');
+                row.className = 'quick-item' + (d.mac === selected ? ' selected' : '');
+                row.onclick = () => selectQuickDevice(d.mac);
+
+                const dot = document.createElement('span');
+                dot.className = 'status-dot ' + (d.online ? 'online' : 'offline');
+                dot.title = d.online ? 'Online' : 'Offline';
+                row.appendChild(dot);
+
+                const name = document.createElement('span');
+                name.className = 'quick-item-name';
+                name.textContent = d.customName || d.name;
+                row.appendChild(name);
+
+                const pin = document.createElement('button');
+                pin.className = 'quick-pin' + (d.pinned ? ' pinned' : '');
+                pin.title = d.pinned ? 'Unpin' : 'Pin to top';
+                pin.innerHTML = pinIcon(d.pinned);
+                pin.onclick = e => { e.stopPropagation(); togglePin(d.mac); };
+                row.appendChild(pin);
+
+                body.appendChild(row);
+            });
+        }
+
+        function selectQuickDevice(mac) {
+            document.getElementById('device-select').value = mac;
+            onDeviceChange();
+        }
+
+        function togglePin(mac) {
+            const device = devices.find(d => d.mac === mac);
+            if (!device) return;
+            fetch('/pin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac: mac, pinned: !device.pinned }),
+            })
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(data => {
+                    device.pinned = data.pinned;
+                    sortDevices();
+                    rebuildDeviceSelect();
+                    renderQuickList();
+                })
+                .catch(() => showToast('Could not update pin', 'error'));
+        }
+
+        function toggleQuickList() {
+            const list = document.getElementById('quick-list');
+            list.classList.toggle('collapsed');
+            localStorage.setItem('quickListCollapsed', list.classList.contains('collapsed'));
+        }
+
+        function recordLocalUsage(mac) {
+            const device = devices.find(d => d.mac.toUpperCase() === mac.toUpperCase());
+            if (!device) return;
+            device.useCount += 1;
+            sortDevices();
+            renderQuickList();
+        }
+
+        function rebuildDeviceSelect() {
+            const select = document.getElementById('device-select');
+            const previous = select.value;
+            // Remove all options except "Custom..."
+            while (select.options.length > 1) select.remove(1);
+            devices.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.mac;
+                opt.dataset.ip = d.ip;
+                opt.dataset.name = d.name;
+                opt.dataset.customName = d.customName || '';
+                opt.dataset.online = d.online ? 'true' : 'false';
+                const label = d.customName ? `${d.customName} (${d.name})` : d.name;
+                opt.textContent = d.online ? `${label} (${d.mac})` : `${label} (${d.mac}) — offline`;
+                select.appendChild(opt);
+            });
+            if ([...select.options].some(o => o.value === previous)) {
+                select.value = previous;
             }
         }
 
@@ -680,26 +889,16 @@
             fetch('/scan')
                 .then(r => r.json())
                 .then(data => {
-                    devices = data.map(d => ({ ...d, customName: d.custom_name || '' }));
+                    devices = data.map(d => ({ ...d, customName: d.custom_name || '', useCount: d.use_count || 0, pinned: !!d.pinned }));
                     const select = document.getElementById('device-select');
-                    // Remove all options except "Custom..."
-                    while (select.options.length > 1) select.remove(1);
-                    // Add new devices (online first, then offline)
-                    data.forEach(d => {
-                        const opt = document.createElement('option');
-                        opt.value = d.mac;
-                        opt.dataset.ip = d.ip;
-                        opt.dataset.name = d.name;
-                        opt.dataset.customName = d.custom_name || '';
-                        opt.dataset.online = d.online ? 'true' : 'false';
-                        const label = d.custom_name ? `${d.custom_name} (${d.name})` : d.name;
-                        opt.textContent = d.online ? `${label} (${d.mac})` : `${label} (${d.mac}) — offline`;
-                        select.appendChild(opt);
-                    });
-                    if (data.length > 0) {
-                        select.value = data[0].mac;
-                        onDeviceChange();
+                    const previous = select.value;
+                    rebuildDeviceSelect();
+                    // Keep the previous selection if it still exists; otherwise fall
+                    // back to the top device.
+                    if (devices.length > 0 && previous !== 'custom' && !devices.some(d => d.mac === previous)) {
+                        select.value = devices[0].mac;
                     }
+                    onDeviceChange();
                     const onlineCount = data.filter(d => d.online).length;
                     showToast(`Found ${onlineCount} online, ${data.length - onlineCount} offline`, 'success');
                 })
@@ -775,6 +974,7 @@
                     const suffix = opt.dataset.online === 'false' ? ' — offline' : '';
                     opt.textContent = `${label} (${mac})${suffix}`;
                     opt.dataset.customName = customName;
+                    renderQuickList();
                     document.getElementById('rename-modal').classList.remove('active');
                     showToast(customName ? `Renamed to "${customName}"` : 'Custom name removed', 'success');
                 })
@@ -872,7 +1072,10 @@
                 if (!mac) return showToast('MAC address required', 'error');
                 fetch(`/wake?mac=${encodeURIComponent(mac)}`)
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
-                    .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
+                    .then(({ t, ok }) => {
+                        showToast(t, ok ? 'success' : 'error');
+                        if (ok) recordLocalUsage(mac);
+                    })
                     .catch(e => showToast(e.message, 'error'));
             } else {
                 const port = document.getElementById('port-input').value.trim();
@@ -881,12 +1084,18 @@
                 const endpoint = action === 'restart' ? 'restart' : 'shutdown';
                 showToast(`Sending ${endpoint} command...`, 'success');
                 let url = `/${endpoint}?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&passphrase=${encodeURIComponent(passphrase)}`;
+                if (mac) {
+                    url += `&mac=${encodeURIComponent(mac)}`;
+                }
                 if (action === 'shutdown' && currentDelayMinutes > 0) {
                     url += `&delay_minutes=${currentDelayMinutes}`;
                 }
                 fetch(url)
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
-                    .then(({ t, ok }) => showToast(t, ok ? 'success' : 'error'))
+                    .then(({ t, ok }) => {
+                        showToast(t, ok ? 'success' : 'error');
+                        if (ok && mac) recordLocalUsage(mac);
+                    })
                     .catch(e => showToast(e.message, 'error'));
             }
         }

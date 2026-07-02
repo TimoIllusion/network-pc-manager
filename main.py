@@ -10,8 +10,9 @@ import urllib.request
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
-from registry import merge_scan, load_registry, save_registry
+from registry import merge_scan, load_registry, save_registry, bump_use_count
 from scan import scan_network
+from settings import load_settings, save_settings
 from sync_profiles import (
     load_profiles, save_profiles, get_profile,
     add_profile, update_profile, delete_profile,
@@ -53,6 +54,7 @@ def index():
         "index.html",
         devices=devices,
         default_agent_port=DEFAULT_AGENT_PORT,
+        last_selected=load_settings().get("last_selected_mac", ""),
     )
 
 
@@ -69,8 +71,18 @@ def wake():
     if not mac_address:
         return "MAC address is required", 400
     send_magic_packet(mac_address)
+    bump_use_count(mac_address.strip().upper())
     logger.info("Wake-on-LAN packet sent to %s", mac_address)
     return f"Wake-on-LAN packet sent to {mac_address}", 200
+
+
+def _bump_usage(mac: str, ip_address: str) -> None:
+    """Count a device action; resolve the MAC from the registry by IP if absent."""
+    if not mac:
+        registry = load_registry()
+        mac = next((m for m, d in registry.items() if d.get("ip") == ip_address), "")
+    if mac:
+        bump_use_count(mac)
 
 
 @app.route("/shutdown", methods=["GET"])
@@ -79,6 +91,7 @@ def shutdown():
     ip_address = request.args.get("ip", "")
     port = request.args.get("port", str(DEFAULT_AGENT_PORT))
     passphrase = request.args.get("passphrase", "")
+    mac = request.args.get("mac", "").strip().upper()
     try:
         delay_minutes = max(0, int(request.args.get("delay_minutes", "0")))
     except ValueError:
@@ -101,6 +114,7 @@ def shutdown():
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             msg = body.get("message", "Shutdown accepted")
+            _bump_usage(mac, ip_address)
             return f"Shutdown: {msg}", 200
     except urllib.error.HTTPError as e:
         try:
@@ -120,6 +134,7 @@ def restart():
     ip_address = request.args.get("ip", "")
     port = request.args.get("port", str(DEFAULT_AGENT_PORT))
     passphrase = request.args.get("passphrase", "")
+    mac = request.args.get("mac", "").strip().upper()
 
     if not ip_address:
         return "IP address is required", 400
@@ -137,6 +152,7 @@ def restart():
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             msg = body.get("message", "Restart accepted")
+            _bump_usage(mac, ip_address)
             return f"Restart: {msg}", 200
     except urllib.error.HTTPError as e:
         try:
@@ -162,6 +178,35 @@ def rename():
         return f"Device {mac} not found in registry", 404
     registry[mac]["custom_name"] = custom_name
     save_registry(registry)
+    return jsonify({"ok": True})
+
+
+@app.route("/pin", methods=["POST"])
+def pin():
+    """Set or clear the pinned flag for a registry entry."""
+    data = request.get_json(silent=True) or {}
+    mac = (data.get("mac") or "").strip().upper()
+    pinned = bool(data.get("pinned"))
+    if not mac:
+        return "MAC address is required", 400
+    registry = load_registry()
+    if mac not in registry:
+        return f"Device {mac} not found in registry", 404
+    registry[mac]["pinned"] = pinned
+    save_registry(registry)
+    return jsonify({"ok": True, "pinned": pinned})
+
+
+@app.route("/select", methods=["POST"])
+def select_device():
+    """Remember the last selected device so the UI can restore it on load."""
+    data = request.get_json(silent=True) or {}
+    mac = (data.get("mac") or "").strip().upper()
+    if not mac:
+        return "MAC address is required", 400
+    settings = load_settings()
+    settings["last_selected_mac"] = mac
+    save_settings(settings)
     return jsonify({"ok": True})
 
 
