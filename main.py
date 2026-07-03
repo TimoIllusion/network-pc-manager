@@ -11,7 +11,7 @@ from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
 from registry import merge_scan, load_registry, save_registry, bump_use_count
-from scan import scan_network
+from scan import ping_ip, scan_network
 from settings import load_settings, save_settings
 from sync_profiles import (
     load_profiles, save_profiles, get_profile,
@@ -195,6 +195,52 @@ def pin():
     registry[mac]["pinned"] = pinned
     save_registry(registry)
     return jsonify({"ok": True, "pinned": pinned})
+
+
+@app.route("/forget", methods=["POST"])
+def forget():
+    """Remove a device from the registry entirely."""
+    data = request.get_json(silent=True) or {}
+    mac = (data.get("mac") or "").strip().upper()
+    if not mac:
+        return "MAC address is required", 400
+    registry = load_registry()
+    if mac not in registry:
+        return f"Device {mac} not found in registry", 404
+    registry.pop(mac)
+    save_registry(registry)
+    settings = load_settings()
+    if settings.get("last_selected_mac") == mac:
+        settings["last_selected_mac"] = ""
+        save_settings(settings)
+    logger.info("Device %s removed from registry", mac)
+    return jsonify({"ok": True})
+
+
+@app.route("/ping-device", methods=["GET"])
+def ping_device():
+    """Probe a registered device's last-known IP to see if it is online."""
+    mac = request.args.get("mac", "").strip().upper()
+    if not mac:
+        return "MAC address is required", 400
+    registry = load_registry()
+    if mac not in registry:
+        return f"Device {mac} not found in registry", 404
+    ip = registry[mac].get("ip", "")
+    if not ip:
+        return jsonify({"online": False})
+    return jsonify({"online": ping_ip(ip), "ip": ip})
+
+
+@app.route("/reset-usage", methods=["POST"])
+def reset_usage():
+    """Zero the usage counter on every registry entry (pins/names untouched)."""
+    registry = load_registry()
+    for entry in registry.values():
+        entry["use_count"] = 0
+    save_registry(registry)
+    logger.info("Usage counters reset for %d device(s)", len(registry))
+    return jsonify({"ok": True})
 
 
 @app.route("/select", methods=["POST"])
