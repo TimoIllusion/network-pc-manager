@@ -161,6 +161,39 @@
             color: var(--primary);
         }
 
+        .quick-reset {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            transition: color 0.15s;
+        }
+
+        .quick-reset:hover {
+            color: var(--text);
+        }
+
+        .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .remember-row input {
+            width: auto;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
         .btn-icon {
             background: var(--bg);
             border: 1px solid var(--border);
@@ -490,6 +523,9 @@
             <div class="quick-list-header" onclick="toggleQuickList()">
                 <span>Frequent</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <button class="quick-reset" id="reset-usage-btn" onclick="event.stopPropagation(); openResetUsageModal()" title="Reset usage counters">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                </button>
             </div>
             <div class="quick-list-body" id="quick-list-body"></div>
         </div>
@@ -507,8 +543,14 @@
             <button class="btn-icon" id="rename-btn" onclick="openRenameModal()" title="Rename device" style="display:none">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
             </button>
+            <button class="btn-icon" id="forget-btn" onclick="forgetDevice()" title="Remove device" style="display:none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+            </button>
             <button class="btn-icon" id="rescan-btn" onclick="rescanNetwork()" title="Rescan network">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"></path><path d="M23 20v-6h-6"></path><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+            </button>
+            <button class="btn-icon" id="auto-refresh-btn" onclick="toggleAutoRefresh()" title="Toggle automatic status refresh (every 60s)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             </button>
         </div>
 
@@ -528,6 +570,10 @@
             <div>
                 <span class="label">Agent Passphrase</span>
                 <input type="password" id="passphrase-input" placeholder="shared secret">
+                <label class="remember-row">
+                    <input type="checkbox" id="remember-passphrase">
+                    Remember passphrase on this device
+                </label>
             </div>
         </div>
 
@@ -658,6 +704,18 @@
         </div>
     </div>
 
+    <!-- Generic Confirm Modal -->
+    <div id="confirm-modal" class="modal-overlay" onclick="closeConfirmModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-title" id="confirm-modal-title">Confirm</div>
+            <div class="modal-desc" id="confirm-modal-desc">Are you sure?</div>
+            <div class="modal-buttons">
+                <button class="btn btn-modal btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="btn btn-modal btn-shutdown" id="confirm-modal-btn" onclick="confirmModalConfirm()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Rename Modal -->
     <div id="rename-modal" class="modal-overlay" onclick="closeRenameModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -736,6 +794,11 @@
             if (localStorage.getItem('quickListCollapsed') === 'true') {
                 document.getElementById('quick-list').classList.add('collapsed');
             }
+            applyAutoRefreshButton();
+            if (localStorage.getItem('rememberPassphrase') === 'true') {
+                document.getElementById('remember-passphrase').checked = true;
+                document.getElementById('passphrase-input').value = localStorage.getItem('savedPassphrase') || '';
+            }
             renderQuickList();
             if (devices.length > 0) {
                 const select = document.getElementById('device-select');
@@ -747,12 +810,15 @@
         function onDeviceChange() {
             const select = document.getElementById('device-select');
             const renameBtn = document.getElementById('rename-btn');
+            const forgetBtn = document.getElementById('forget-btn');
             if (select.value === 'custom') {
                 renameBtn.style.display = 'none';
+                forgetBtn.style.display = 'none';
                 document.getElementById('mac-input').focus();
                 setShutdownEnabled(true);
             } else {
                 renameBtn.style.display = '';
+                forgetBtn.style.display = '';
                 const device = devices.find(d => d.mac === select.value);
                 if (device) {
                     document.getElementById('mac-input').value = device.mac;
@@ -799,8 +865,13 @@
                 row.onclick = () => selectQuickDevice(d.mac);
 
                 const dot = document.createElement('span');
-                dot.className = 'status-dot ' + (d.online ? 'online' : 'offline');
-                dot.title = d.online ? 'Online' : 'Offline';
+                if (d.mac === wakeWatch.mac) {
+                    dot.className = 'status-dot checking';
+                    dot.title = 'Waking up...';
+                } else {
+                    dot.className = 'status-dot ' + (d.online ? 'online' : 'offline');
+                    dot.title = d.online ? 'Online' : 'Offline';
+                }
                 row.appendChild(dot);
 
                 const name = document.createElement('span');
@@ -882,11 +953,12 @@
             document.querySelector('.btn-restart').disabled = !enabled;
         }
 
-        function rescanNetwork() {
-            const btn = document.getElementById('rescan-btn');
-            btn.classList.add('spinning');
+        let refreshing = false;
 
-            fetch('/scan')
+        function refreshDevices(silent) {
+            if (refreshing) return Promise.resolve();
+            refreshing = true;
+            return fetch('/scan')
                 .then(r => r.json())
                 .then(data => {
                     devices = data.map(d => ({ ...d, customName: d.custom_name || '', useCount: d.use_count || 0, pinned: !!d.pinned }));
@@ -899,11 +971,101 @@
                         select.value = devices[0].mac;
                     }
                     onDeviceChange();
-                    const onlineCount = data.filter(d => d.online).length;
-                    showToast(`Found ${onlineCount} online, ${data.length - onlineCount} offline`, 'success');
+                    if (!silent) {
+                        const onlineCount = data.filter(d => d.online).length;
+                        showToast(`Found ${onlineCount} online, ${data.length - onlineCount} offline`, 'success');
+                    }
                 })
-                .catch(e => showToast('Network scan failed', 'error'))
-                .finally(() => btn.classList.remove('spinning'));
+                .catch(e => { if (!silent) showToast('Network scan failed', 'error'); })
+                .finally(() => { refreshing = false; });
+        }
+
+        function rescanNetwork() {
+            const btn = document.getElementById('rescan-btn');
+            btn.classList.add('spinning');
+            refreshDevices(false).finally(() => btn.classList.remove('spinning'));
+        }
+
+        // ── Periodic auto-refresh ─────────────────────────────────────────
+
+        const AUTO_REFRESH_SECONDS = 60;
+
+        function autoRefreshEnabled() {
+            return localStorage.getItem('autoRefresh') !== 'false';
+        }
+
+        function applyAutoRefreshButton() {
+            document.getElementById('auto-refresh-btn').classList.toggle('active', autoRefreshEnabled());
+        }
+
+        function toggleAutoRefresh() {
+            localStorage.setItem('autoRefresh', autoRefreshEnabled() ? 'false' : 'true');
+            applyAutoRefreshButton();
+            showToast(autoRefreshEnabled()
+                ? `Auto-refresh on (every ${AUTO_REFRESH_SECONDS}s)`
+                : 'Auto-refresh off', 'success');
+        }
+
+        setInterval(() => {
+            if (autoRefreshEnabled() && !document.hidden && !refreshing) refreshDevices(true);
+        }, AUTO_REFRESH_SECONDS * 1000);
+
+        // ── Wake-and-watch ────────────────────────────────────────────────
+
+        const WAKE_WATCH_INTERVAL_MS = 5000;
+        const WAKE_WATCH_TIMEOUT_MS = 120000;
+        let wakeWatch = { mac: null, timer: null, deadline: 0 };
+
+        function startWakeWatch(mac) {
+            stopWakeWatch();
+            wakeWatch = {
+                mac: mac,
+                timer: setInterval(wakeWatchTick, WAKE_WATCH_INTERVAL_MS),
+                deadline: Date.now() + WAKE_WATCH_TIMEOUT_MS,
+            };
+            renderQuickList();
+        }
+
+        function stopWakeWatch() {
+            if (wakeWatch.timer) clearInterval(wakeWatch.timer);
+            wakeWatch = { mac: null, timer: null, deadline: 0 };
+            renderQuickList();
+        }
+
+        function wakeWatchTick() {
+            const mac = wakeWatch.mac;
+            const device = devices.find(d => d.mac === mac);
+            if (!device) return stopWakeWatch();
+            // Auto-refresh may have already flipped the device online.
+            if (device.online) return finishWakeWatch(device, device.ip);
+            if (Date.now() > wakeWatch.deadline) {
+                const name = device.customName || device.name;
+                stopWakeWatch();
+                showToast(`${name} did not come online within 2 minutes`, 'error');
+                return;
+            }
+            fetch(`/ping-device?mac=${encodeURIComponent(mac)}`)
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(data => {
+                    if (wakeWatch.mac !== mac) return;
+                    if (data.online) finishWakeWatch(device, data.ip);
+                })
+                .catch(() => {});
+        }
+
+        function finishWakeWatch(device, ip) {
+            stopWakeWatch();
+            device.online = true;
+            if (ip) device.ip = ip;
+            rebuildDeviceSelect();
+            renderQuickList();
+            const select = document.getElementById('device-select');
+            if (select.value === device.mac) {
+                document.getElementById('ip-input').value = device.ip;
+                setShutdownEnabled(true);
+                checkAgentHealth();
+            }
+            showToast(`${device.customName || device.name} is now online`, 'success');
         }
 
         function checkAgentHealth() {
@@ -981,6 +1143,101 @@
                 .catch(err => showToast(`Rename failed: ${err}`, 'error'));
         }
 
+        // ── Generic confirm modal ─────────────────────────────────────────
+
+        let confirmModalCallback = null;
+
+        function openConfirmModal(title, desc, confirmLabel, onConfirm) {
+            document.getElementById('confirm-modal-title').textContent = title;
+            document.getElementById('confirm-modal-desc').textContent = desc;
+            document.getElementById('confirm-modal-btn').textContent = confirmLabel;
+            confirmModalCallback = onConfirm;
+            document.getElementById('confirm-modal').classList.add('active');
+        }
+
+        function closeConfirmModal(e) {
+            if (e && e.currentTarget !== e.target) return;
+            document.getElementById('confirm-modal').classList.remove('active');
+        }
+
+        function confirmModalConfirm() {
+            const callback = confirmModalCallback;
+            confirmModalCallback = null;
+            closeConfirmModal();
+            if (callback) callback();
+        }
+
+        function forgetDevice() {
+            const select = document.getElementById('device-select');
+            const mac = select.value;
+            if (mac === 'custom') return;
+            const device = devices.find(d => d.mac === mac);
+            if (!device) return;
+            const name = device.customName || device.name;
+            openConfirmModal(
+                'Remove Device',
+                `Remove ${name}? An online device will reappear on the next scan.`,
+                'Remove',
+                () => {
+                    fetch('/forget', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mac: mac }),
+                    })
+                        .then(r => { if (!r.ok) return r.text().then(t => Promise.reject(t)); return r.json(); })
+                        .then(() => {
+                            if (wakeWatch.mac === mac) stopWakeWatch();
+                            devices = devices.filter(d => d.mac !== mac);
+                            rebuildDeviceSelect();
+                            select.value = devices.length > 0 ? devices[0].mac : 'custom';
+                            onDeviceChange();
+                            showToast(`Removed ${name}`, 'success');
+                        })
+                        .catch(err => showToast(`Remove failed: ${err}`, 'error'));
+                }
+            );
+        }
+
+        function openResetUsageModal() {
+            openConfirmModal(
+                'Reset Usage Counters',
+                'Reset usage counters? Pins and names are kept.',
+                'Reset',
+                () => {
+                    fetch('/reset-usage', { method: 'POST' })
+                        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                        .then(() => {
+                            devices.forEach(d => { d.useCount = 0; });
+                            sortDevices();
+                            rebuildDeviceSelect();
+                            renderQuickList();
+                            showToast('Usage counters reset', 'success');
+                        })
+                        .catch(() => showToast('Could not reset usage counters', 'error'));
+                }
+            );
+        }
+
+        // ── Remember passphrase (opt-in) ──────────────────────────────────
+
+        function updateSavedPassphrase() {
+            if (localStorage.getItem('rememberPassphrase') === 'true') {
+                localStorage.setItem('savedPassphrase', document.getElementById('passphrase-input').value);
+            }
+        }
+
+        document.getElementById('remember-passphrase').addEventListener('change', e => {
+            if (e.target.checked) {
+                localStorage.setItem('rememberPassphrase', 'true');
+                updateSavedPassphrase();
+            } else {
+                localStorage.removeItem('rememberPassphrase');
+                localStorage.removeItem('savedPassphrase');
+            }
+        });
+
+        document.getElementById('passphrase-input').addEventListener('input', updateSavedPassphrase);
+
         function showToast(text, type = 'success') {
             const toast = document.getElementById('toast');
             document.getElementById('toast-text').textContent = text;
@@ -1031,6 +1288,7 @@
                 return;
             }
             document.getElementById('passphrase-input').value = passphrase;
+            updateSavedPassphrase();
             currentDelayMinutes = parseInt(document.getElementById('shutdown-delay-select').value) || 0;
             closePassphraseModal();
             executeAction();
@@ -1074,7 +1332,11 @@
                     .then(r => r.text().then(t => ({ t, ok: r.ok })))
                     .then(({ t, ok }) => {
                         showToast(t, ok ? 'success' : 'error');
-                        if (ok) recordLocalUsage(mac);
+                        if (ok) {
+                            recordLocalUsage(mac);
+                            const device = devices.find(d => d.mac.toUpperCase() === mac.toUpperCase());
+                            if (device && device.online === false) startWakeWatch(device.mac);
+                        }
                     })
                     .catch(e => showToast(e.message, 'error'));
             } else {

@@ -42,6 +42,12 @@ def scan_network(subnet: str = DEFAULT_SUBNET, timeout: int = 2) -> list[dict]:
     return devices
 
 
+def ping_ip(ip: str, timeout: int = 2) -> bool:
+    """Single-IP ARP probe; True if the host answers."""
+    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
+    return len(srp(packet, timeout=timeout, verbose=0)[0]) > 0
+
+
 if __name__ == "__main__":
     print(f"Scanning {DEFAULT_SUBNET} ...")
     for dev in scan_network():
