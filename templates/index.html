@@ -491,6 +491,122 @@
             font-weight: 600;
         }
 
+        /* Collapsible Device Details */
+        .device-details {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            background: rgba(255, 255, 255, 0.02);
+            overflow: hidden;
+            transition: border-color 0.15s;
+        }
+
+        .device-details:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .device-details summary {
+            padding: 10px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--muted);
+            user-select: none;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .device-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .device-details summary::after {
+            content: '\u25be'; /* unicode down triangle */
+            font-size: 12px;
+            color: var(--muted);
+            transition: transform 0.15s;
+        }
+
+        .device-details[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .device-details summary:hover {
+            color: var(--text);
+        }
+
+        .device-details summary .summary-sub {
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 400;
+            margin-left: auto;
+            margin-right: 8px;
+        }
+
+        .device-details .details-content {
+            padding: 4px 12px 12px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .passphrase-container {
+            margin-bottom: 24px;
+        }
+
+        /* Quick List Action Buttons */
+        .quick-item {
+            position: relative;
+            padding-right: 8px;
+        }
+
+        .quick-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+            margin-right: 4px;
+        }
+
+        .quick-action-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: color 0.15s, background-color 0.15s, transform 0.1s;
+        }
+
+        .quick-action-btn:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .quick-action-btn:active {
+            transform: scale(0.92);
+        }
+
+        .quick-action-btn.quick-wake-btn:hover {
+            color: var(--success);
+            background: rgba(22, 163, 74, 0.15);
+        }
+
+        .quick-action-btn.quick-shutdown-btn:hover {
+            color: var(--danger);
+            background: rgba(220, 38, 38, 0.15);
+        }
+
+        .quick-action-btn svg {
+            display: block;
+        }
+
         .modal-content.wide { max-width: 440px; }
 
         .profile-path-group {
@@ -554,27 +670,33 @@
             </button>
         </div>
 
-        <div class="input-group">
-            <div>
-                <span class="label">MAC Address</span>
-                <input type="text" id="mac-input" placeholder="00:00:00:00:00:00">
+        <details class="device-details" id="device-details">
+            <summary>
+                Device Details <span class="summary-sub">(MAC, IP, Port)</span>
+            </summary>
+            <div class="details-content">
+                <div>
+                    <span class="label">MAC Address</span>
+                    <input type="text" id="mac-input" placeholder="00:00:00:00:00:00">
+                </div>
+                <div>
+                    <span class="label">IP Address</span>
+                    <input type="text" id="ip-input" placeholder="192.168.1.100">
+                </div>
+                <div>
+                    <span class="label">Agent Port</span>
+                    <input type="text" id="port-input" value="{{ default_agent_port }}" placeholder="9876">
+                </div>
             </div>
-            <div>
-                <span class="label">IP Address</span>
-                <input type="text" id="ip-input" placeholder="192.168.1.100">
-            </div>
-            <div>
-                <span class="label">Agent Port</span>
-                <input type="text" id="port-input" value="{{ default_agent_port }}" placeholder="9876">
-            </div>
-            <div>
-                <span class="label">Agent Passphrase</span>
-                <input type="password" id="passphrase-input" placeholder="shared secret">
-                <label class="remember-row">
-                    <input type="checkbox" id="remember-passphrase">
-                    Remember passphrase on this device
-                </label>
-            </div>
+        </details>
+
+        <div class="passphrase-container">
+            <span class="label">Agent Passphrase</span>
+            <input type="password" id="passphrase-input" placeholder="shared secret">
+            <label class="remember-row">
+                <input type="checkbox" id="remember-passphrase">
+                Remember passphrase on this device
+            </label>
         </div>
 
         <div class="button-group">
@@ -811,14 +933,17 @@
             const select = document.getElementById('device-select');
             const renameBtn = document.getElementById('rename-btn');
             const forgetBtn = document.getElementById('forget-btn');
+            const detailsEl = document.getElementById('device-details');
             if (select.value === 'custom') {
                 renameBtn.style.display = 'none';
                 forgetBtn.style.display = 'none';
+                if (detailsEl) detailsEl.open = true;
                 document.getElementById('mac-input').focus();
                 setShutdownEnabled(true);
             } else {
                 renameBtn.style.display = '';
                 forgetBtn.style.display = '';
+                if (detailsEl) detailsEl.open = false;
                 const device = devices.find(d => d.mac === select.value);
                 if (device) {
                     document.getElementById('mac-input').value = device.mac;
@@ -879,6 +1004,37 @@
                 name.textContent = d.customName || d.name;
                 row.appendChild(name);
 
+                // Quick actions
+                const actions = document.createElement('div');
+                actions.className = 'quick-actions';
+
+                const wakeBtn = document.createElement('button');
+                wakeBtn.className = 'quick-action-btn quick-wake-btn';
+                wakeBtn.title = 'Wake device directly';
+                wakeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>`;
+                wakeBtn.onclick = e => { quickWake(d.mac, e); };
+
+                const shutdownBtn = document.createElement('button');
+                shutdownBtn.className = 'quick-action-btn quick-shutdown-btn';
+                shutdownBtn.title = 'Shutdown device';
+                shutdownBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M7 15h0M2 9.5h20"></path></svg>`;
+                shutdownBtn.onclick = e => { quickShutdown(d.mac, e); };
+
+                if (d.mac === wakeWatch.mac) {
+                    wakeBtn.style.opacity = '0.4';
+                    wakeBtn.style.pointerEvents = 'none';
+                    shutdownBtn.style.opacity = '0.4';
+                    shutdownBtn.style.pointerEvents = 'none';
+                } else if (d.online) {
+                    wakeBtn.style.display = 'none';
+                } else {
+                    shutdownBtn.style.display = 'none';
+                }
+
+                actions.appendChild(wakeBtn);
+                actions.appendChild(shutdownBtn);
+                row.appendChild(actions);
+
                 const pin = document.createElement('button');
                 pin.className = 'quick-pin' + (d.pinned ? ' pinned' : '');
                 pin.title = d.pinned ? 'Unpin' : 'Pin to top';
@@ -893,6 +1049,30 @@
         function selectQuickDevice(mac) {
             document.getElementById('device-select').value = mac;
             onDeviceChange();
+        }
+
+        function quickWake(mac, e) {
+            if (e) e.stopPropagation();
+            selectQuickDevice(mac);
+            
+            showToast('Sending Wake-on-LAN packet...', 'success');
+            fetch(`/wake?mac=${encodeURIComponent(mac)}`)
+                .then(r => r.text().then(t => ({ t, ok: r.ok })))
+                .then(({ t, ok }) => {
+                    showToast(t, ok ? 'success' : 'error');
+                    if (ok) {
+                        recordLocalUsage(mac);
+                        const device = devices.find(d => d.mac.toUpperCase() === mac.toUpperCase());
+                        if (device && device.online === false) startWakeWatch(device.mac);
+                    }
+                })
+                .catch(e => showToast(e.message, 'error'));
+        }
+
+        function quickShutdown(mac, e) {
+            if (e) e.stopPropagation();
+            selectQuickDevice(mac);
+            openPassphraseModal('shutdown');
         }
 
         function togglePin(mac) {

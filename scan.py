@@ -21,8 +21,12 @@ DEFAULT_SUBNET = os.environ.get("NETWORK_PC_MANAGER_SUBNET") or get_local_subnet
 
 def scan_network(subnet: str = DEFAULT_SUBNET, timeout: int = 2) -> list[dict]:
     """Return a list of dicts with keys: ip, mac, name."""
-    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=subnet)
-    result = srp(packet, timeout=timeout, verbose=0)[0]
+    try:
+        packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=subnet)
+        result = srp(packet, timeout=timeout, verbose=0)[0]
+    except Exception as e:
+        print(f"Network scan failed (requires root/sudo for raw ARP socket): {e}")
+        return []
 
     devices = []
     for _sent, received in result:
@@ -44,8 +48,12 @@ def scan_network(subnet: str = DEFAULT_SUBNET, timeout: int = 2) -> list[dict]:
 
 def ping_ip(ip: str, timeout: int = 2) -> bool:
     """Single-IP ARP probe; True if the host answers."""
-    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
-    return len(srp(packet, timeout=timeout, verbose=0)[0]) > 0
+    try:
+        packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
+        return len(srp(packet, timeout=timeout, verbose=0)[0]) > 0
+    except Exception as e:
+        print(f"ARP ping failed (requires root/sudo for raw ARP socket): {e}")
+        return False
 
 
 if __name__ == "__main__":
