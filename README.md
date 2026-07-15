@@ -68,19 +68,40 @@ The agent is required for remote **shutdown**, **restart**, and **save game sync
 
 The installer copies the agent to `C:\Program Files\NetworkPCManager`, creates a scheduled task for auto-start, and adds a firewall rule. To remove it, run `uninstall.bat` as administrator.
 
+### Linux / Proxmox — Standalone Release (Recommended, no Python required)
+
+1. Download the latest `NetworkPCManager-ShutdownAgent-*-linux-x64.zip` from [Releases](https://github.com/TimoIllusion/network-pc-manager/releases)
+2. Extract the zip
+3. Run the installer:
+   ```bash
+   sudo bash install.sh
+   ```
+4. Enter a passphrase and port when prompted
+
+The installer copies the agent to `/opt/network-pc-manager/`, creates a systemd service for auto-start (or falls back to cron `@reboot` if systemd is unavailable). To remove it, run `sudo bash uninstall.sh`.
+
+**Proxmox notes:**
+- On Proxmox VE (host) and LXC containers the agent runs as root and does not require `sudo` — the agent detects this automatically.
+- The agent can safely shut down a Proxmox host or container, but note that a container cannot shut down its own host OS; use it for VMs/containers that the agent process lives inside.
+
 ### Windows — From Source
 
 1. Install [Python](https://www.python.org/downloads/)
 2. Clone or download this repo
 3. Run `setup_agent.bat` as Administrator
 
-### Linux / macOS
+### Linux / macOS — From Source
 
 ```bash
 git clone https://github.com/TimoIllusion/network-pc-manager.git && cd network-pc-manager && bash setup_agent.sh
 ```
 
 All setup methods prompt for a passphrase (min 8 characters) and register the agent as a system service that starts on boot.
+
+### Updating an existing standalone install
+
+- **Windows:** Download the latest release zip and run `update.bat` as Administrator.
+- **Linux:** Run `sudo bash update.sh` — it downloads the latest linux release zip automatically.
 
 ### Agent Configuration
 
