@@ -98,44 +98,70 @@ def create_zip():
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(exe_path, os.path.join(inner_dir, exe_name))
+        # Ensure the binary has +x in the archive (matters on Linux/macOS)
+        if system != "windows":
+            zi = zf.getinfo(os.path.join(inner_dir, exe_name))
+            zi.external_attr = (0o755 << 16) | zi.external_attr
 
         # Include helper scripts for Windows
-        scripts_dir = os.path.join("release_scripts", "windows")
-        if os.path.isdir(scripts_dir):
-            for fname in os.listdir(scripts_dir):
-                fpath = os.path.join(scripts_dir, fname)
-                if os.path.isfile(fpath):
+        if system == "windows":
+            scripts_dir = os.path.join("release_scripts", "windows")
+            if os.path.isdir(scripts_dir):
+                for fname in os.listdir(scripts_dir):
+                    fpath = os.path.join(scripts_dir, fname)
+                    if os.path.isfile(fpath):
+                        arcname = os.path.join(inner_dir, fname)
+                        # Ensure .bat and .ps1 files have CRLF line endings (required on Windows)
+                        if fname.lower().endswith(( ".bat", ".ps1")):
+                            with open(fpath, "rb") as f:
+                                content = f.read()
+                            # Normalize to LF first, then convert to CRLF
+                            content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                            info = zipfile.ZipInfo(arcname)
+                            info.compress_type = zipfile.ZIP_DEFLATED
+                            zf.writestr(info, content)
+                        else:
+                            zf.write(fpath, arcname)
+
+        # Include helper scripts for Linux (standalone binary release)
+        linux_scripts_dir = os.path.join("release_scripts", "linux")
+        if os.path.isdir(linux_scripts_dir):
+            for fname in os.listdir(linux_scripts_dir):
+                fpath = os.path.join(linux_scripts_dir, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                arcname = os.path.join(inner_dir, fname)
+                if fname.endswith(".sh"):
+                    # Convert to LF (strip any CRLF) and mark executable
+                    with open(fpath, "rb") as f:
+                        content = f.read()
+                    content = content.replace(b"\r\n", b"\n")
+                    zi = zipfile.ZipInfo(arcname)
+                    zi.compress_type = zipfile.ZIP_DEFLATED
+                    zi.external_attr = (0o755 << 16) | zi.external_attr
+                    zf.writestr(zi, content)
+                else:
+                    zf.write(fpath, arcname)
+
+        # Include bootstrap files for automated PC setup (Windows-only feature)
+        if system == "windows":
+            bootstrap_files = [
+                ("bootstrap.bat", True),
+                ("bootstrap.ps1", True),
+                ("setup_packages.json", False),
+            ]
+            for fname, needs_crlf in bootstrap_files:
+                if os.path.isfile(fname):
                     arcname = os.path.join(inner_dir, fname)
-                    # Ensure .bat and .ps1 files have CRLF line endings (required on Windows)
-                    if fname.lower().endswith((".bat", ".ps1")):
-                        with open(fpath, "rb") as f:
+                    if needs_crlf:
+                        with open(fname, "rb") as f:
                             content = f.read()
-                        # Normalize to LF first, then convert to CRLF
                         content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
                         info = zipfile.ZipInfo(arcname)
                         info.compress_type = zipfile.ZIP_DEFLATED
                         zf.writestr(info, content)
                     else:
-                        zf.write(fpath, arcname)
-
-        # Include bootstrap files for automated PC setup
-        bootstrap_files = [
-            ("bootstrap.bat", True),
-            ("bootstrap.ps1", True),
-            ("setup_packages.json", False),
-        ]
-        for fname, needs_crlf in bootstrap_files:
-            if os.path.isfile(fname):
-                arcname = os.path.join(inner_dir, fname)
-                if needs_crlf:
-                    with open(fname, "rb") as f:
-                        content = f.read()
-                    content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-                    info = zipfile.ZipInfo(arcname)
-                    info.compress_type = zipfile.ZIP_DEFLATED
-                    zf.writestr(info, content)
-                else:
-                    zf.write(fname, arcname)
+                        zf.write(fname, arcname)
 
     print(f"  -> {zip_path}  ({os.path.getsize(zip_path) / 1024 / 1024:.1f} MB)")
     return zip_path

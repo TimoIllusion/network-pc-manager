@@ -79,6 +79,16 @@ def setup_logging(log_file):
     return logger
 
 
+def _can_shutdown_without_sudo() -> bool:
+    """True if we are root or polkit/systemd would let us shut down without sudo.
+
+    On minimal containers (Proxmox LXC, Alpine, etc.) sudo may not be installed
+    even when the process runs as root, so blindly prefixing with 'sudo' breaks
+    shutdown entirely. We only skip the prefix when we actually have UID 0.
+    """
+    return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
 def get_shutdown_command(delay_minutes=0):
     """Return the appropriate shutdown command for the current OS."""
     system = platform.system().lower()
@@ -87,18 +97,23 @@ def get_shutdown_command(delay_minutes=0):
         return ["shutdown", "/s", "/t", str(delay_seconds)]
     else:  # Linux and macOS
         delay_str = f"+{delay_minutes}" if delay_minutes > 0 else "+0"
-        return ["sudo", "shutdown", "-h", delay_str]
+        cmd = ["shutdown", "-h", delay_str]
+        if not _can_shutdown_without_sudo():
+            cmd.insert(0, "sudo")
+        return cmd
 
 
 def get_restart_command():
     """Return the appropriate restart command for the current OS."""
     system = platform.system().lower()
+    delay = f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"
     if system == "windows":
         return ["shutdown", "/r", "/t", str(SHUTDOWN_DELAY_SECONDS)]
-    elif system == "darwin":
-        return ["sudo", "shutdown", "-r", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
-    else:  # Linux and others
-        return ["sudo", "shutdown", "-r", f"+{max(1, SHUTDOWN_DELAY_SECONDS // 60)}"]
+    else:  # Linux, macOS, and others
+        cmd = ["shutdown", "-r", delay]
+        if not _can_shutdown_without_sudo():
+            cmd.insert(0, "sudo")
+        return cmd
 
 
 def constant_time_compare(a: str, b: str) -> bool:
