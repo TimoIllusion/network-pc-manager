@@ -136,6 +136,26 @@ else
     info "Agent started (PID: $!)."
 fi
 
+# ─── Configure firewall ──────────────────────────────────────────────────────
+info "Configuring firewall rules for port ${PORT}..."
+if [ -f "/etc/pve/firewall/cluster.fw" ]; then
+    if ! grep -q "${PORT}" "/etc/pve/firewall/cluster.fw"; then
+        echo "IN ACCEPT -p tcp -dport ${PORT} -log nolog # Network PC Manager Shutdown Agent" >> "/etc/pve/firewall/cluster.fw"
+        pve-firewall compile 2>/dev/null || true
+        pve-firewall restart 2>/dev/null || true
+        info "Added port ${PORT} rule to Proxmox VE firewall."
+    fi
+fi
+if command -v ufw &>/dev/null; then
+    ufw allow "${PORT}/tcp" &>/dev/null || true
+    info "Allowed port ${PORT}/tcp in ufw."
+fi
+if command -v firewall-cmd &>/dev/null; then
+    firewall-cmd --add-port="${PORT}/tcp" --permanent &>/dev/null || true
+    firewall-cmd --reload &>/dev/null || true
+    info "Allowed port ${PORT}/tcp in firewalld."
+fi
+
 # ─── Done ────────────────────────────────────────────────────────────────────
 echo
 info "Setup complete!"
