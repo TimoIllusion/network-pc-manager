@@ -123,7 +123,7 @@ def create_zip():
                         else:
                             zf.write(fpath, arcname)
 
-        # Include helper scripts for Linux (standalone binary release)
+        # Include helper scripts and Python fallback source files for Linux
         linux_scripts_dir = os.path.join("release_scripts", "linux")
         if os.path.isdir(linux_scripts_dir):
             for fname in os.listdir(linux_scripts_dir):
@@ -142,6 +142,10 @@ def create_zip():
                     zf.writestr(zi, content)
                 else:
                     zf.write(fpath, arcname)
+
+            for py_file in ["shutdown_agent.py", "version.py"]:
+                if os.path.isfile(py_file):
+                    zf.write(py_file, os.path.join(inner_dir, py_file))
 
         # Include bootstrap files for automated PC setup (Windows-only feature)
         if system == "windows":
