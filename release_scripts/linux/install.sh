@@ -60,15 +60,33 @@ if [ -n "$SYNC_DIRS" ]; then
     info "File sync enabled for: $SYNC_DIRS"
 fi
 
-# ─── Install binary ──────────────────────────────────────────────────────────
-info "Installing binary to $INSTALL_DIR ..."
+# ─── Install binary and source files ──────────────────────────────────────────
+info "Installing files to $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
-cp -f "$BINARY" "$INSTALL_DIR/shutdown_agent"
-chmod +x "$INSTALL_DIR/shutdown_agent"
-info "Binary installed."
+cp -f "$BINARY" "$INSTALL_DIR/shutdown_agent" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/shutdown_agent" 2>/dev/null || true
+
+if [ -f "$SCRIPT_DIR/shutdown_agent.py" ]; then
+    cp -f "$SCRIPT_DIR/shutdown_agent.py" "$INSTALL_DIR/shutdown_agent.py"
+fi
+if [ -f "$SCRIPT_DIR/version.py" ]; then
+    cp -f "$SCRIPT_DIR/version.py" "$INSTALL_DIR/version.py"
+fi
+info "Files installed."
 
 # Ensure log file is writable by the service (runs as root by default)
 touch "$LOG_FILE" 2>/dev/null || true
+
+# Determine execution command (fallback to python3 if binary fails GLIBC check)
+EXEC_CMD="${INSTALL_DIR}/shutdown_agent --port ${PORT}"
+PYTHON_BIN="$(command -v python3 2>/dev/null || true)"
+
+if [ -n "$PYTHON_BIN" ] && [ -f "${INSTALL_DIR}/shutdown_agent.py" ]; then
+    if ! "${INSTALL_DIR}/shutdown_agent" --help &>/dev/null; then
+        warn "Standalone binary failed execution test (e.g. GLIBC version mismatch); using system python3."
+        EXEC_CMD="${PYTHON_BIN} ${INSTALL_DIR}/shutdown_agent.py --port ${PORT}"
+    fi
+fi
 
 # ─── Install service ─────────────────────────────────────────────────────────
 if command -v systemctl &>/dev/null; then
@@ -91,7 +109,7 @@ After=network.target
 Type=simple
 Environment=NETWORK_PC_MANAGER_AGENT_PASSPHRASE=${PASSPHRASE}
 ${SYNC_DIRS_ENV}
-ExecStart=${INSTALL_DIR}/shutdown_agent --port ${PORT}
+ExecStart=${EXEC_CMD}
 Restart=on-failure
 RestartSec=5
 
@@ -106,7 +124,7 @@ EOF
 else
     # ── Fallback: cron @reboot ──
     warn "No systemd found. Falling back to cron."
-    CRON_CMD="@reboot NETWORK_PC_MANAGER_AGENT_PASSPHRASE='${PASSPHRASE}'${SYNC_DIRS:+ NETWORK_PC_MANAGER_SYNC_DIRS='${SYNC_DIRS}'} ${INSTALL_DIR}/shutdown_agent --port ${PORT}"
+    CRON_CMD="@reboot NETWORK_PC_MANAGER_AGENT_PASSPHRASE='${PASSPHRASE}'${SYNC_DIRS:+ NETWORK_PC_MANAGER_SYNC_DIRS='${SYNC_DIRS}'} ${EXEC_CMD}"
     if crontab -l 2>/dev/null | grep -qF "shutdown_agent"; then
         warn "Cron entry already exists – replacing."
         crontab -l 2>/dev/null | grep -vF "shutdown_agent" | { cat; echo "$CRON_CMD"; } | crontab -
@@ -114,7 +132,7 @@ else
         (crontab -l 2>/dev/null || true; echo "$CRON_CMD") | crontab -
     fi
     info "Cron entry added. Starting agent now..."
-    NETWORK_PC_MANAGER_AGENT_PASSPHRASE="$PASSPHRASE" nohup "$INSTALL_DIR/shutdown_agent" --port "$PORT" &>"$LOG_FILE" &
+    NETWORK_PC_MANAGER_AGENT_PASSPHRASE="$PASSPHRASE" nohup ${EXEC_CMD} &>"$LOG_FILE" &
     info "Agent started (PID: $!)."
 fi
 
