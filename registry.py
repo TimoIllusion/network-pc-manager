@@ -24,14 +24,11 @@ def merge_scan(scan_results: list[dict]) -> list[dict]:
 
     Online devices update the registry (refreshing their IP / name).
     Offline devices are returned from the registry with online=False and ip="".
-    The list is sorted: pinned first, then by usage, then alphabetically.
     """
     registry = load_registry()
 
-    online_macs: set[str] = set()
     for device in scan_results:
         mac = device["mac"]
-        online_macs.add(mac)
         existing = registry.get(mac, {})
         registry[mac] = {
             "ip": device["ip"],
@@ -43,6 +40,17 @@ def merge_scan(scan_results: list[dict]) -> list[dict]:
         }
 
     save_registry(registry)
+    return build_device_list({d["mac"] for d in scan_results})
+
+
+def build_device_list(online_macs: set[str]) -> list[dict]:
+    """Return registry devices with online state taken from ``online_macs``.
+
+    Used both after a live scan and to serve the last known state from cache
+    without scanning. The list is sorted: pinned first, then by usage, then
+    alphabetically.
+    """
+    registry = load_registry()
 
     result = []
     for mac, info in registry.items():

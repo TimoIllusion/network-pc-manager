@@ -927,6 +927,10 @@
                 select.value = devices.some(d => d.mac === lastSelected) ? lastSelected : devices[0].mac;
                 onDeviceChange();
             }
+            // The page was rendered from the last cached scan; refresh it now.
+            const rescanBtn = document.getElementById('rescan-btn');
+            rescanBtn.classList.add('spinning');
+            refreshDevices(true).finally(() => rescanBtn.classList.remove('spinning'));
         };
 
         function onDeviceChange() {

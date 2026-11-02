@@ -4,13 +4,17 @@ import logging
 import logging.handlers
 import os
 import shutil
+import threading
+import time
 import urllib.error
 import urllib.request
 
 from flask import Flask, request, render_template, jsonify
 from wakeonlan import send_magic_packet
 
-from registry import merge_scan, load_registry, save_registry, bump_use_count
+from registry import (
+    merge_scan, build_device_list, load_registry, save_registry, bump_use_count,
+)
 from scan import ping_ip, scan_network
 from settings import load_settings, save_settings
 from sync_profiles import (
@@ -45,14 +49,39 @@ logger.addHandler(_sh)
 app = Flask(__name__)
 
 
+# ── Scanning ─────────────────────────────────────────────────────────────────
+# A full ARP scan takes several seconds, so pages render from the result of the
+# last scan and the browser triggers a fresh scan via /scan in the background.
+
+_scan_lock = threading.Lock()
+_last_online_macs: set[str] = set()  # MACs that answered the most recent scan
+_last_scan_finished = 0.0
+
+
+def run_scan() -> list[dict]:
+    """Scan the network and update the cache.
+
+    Scans are serialized; a caller that had to wait for a scan which finished
+    after it arrived reuses that result instead of starting another one.
+    """
+    global _last_online_macs, _last_scan_finished
+    requested = time.time()
+    with _scan_lock:
+        if _last_scan_finished >= requested:
+            return build_device_list(_last_online_macs)
+        logger.info("Scanning network for devices...")
+        devices = merge_scan(scan_network())
+        _last_online_macs = {d["mac"] for d in devices if d["online"]}
+        _last_scan_finished = time.time()
+        logger.info("Found %d device(s)", len(devices))
+        return devices
+
+
 @app.route("/")
 def index():
-    logger.info("Scanning network for devices...")
-    devices = merge_scan(scan_network())
-    logger.info("Found %d device(s)", len(devices))
     return render_template(
         "index.html",
-        devices=devices,
+        devices=build_device_list(_last_online_macs),
         default_agent_port=DEFAULT_AGENT_PORT,
         last_selected=load_settings().get("last_selected_mac", ""),
     )
@@ -61,8 +90,7 @@ def index():
 @app.route("/scan")
 def scan():
     """Re-scan the network and return the device list as JSON."""
-    logger.info("Manual network re-scan triggered")
-    return jsonify(merge_scan(scan_network()))
+    return jsonify(run_scan())
 
 
 @app.route("/wake", methods=["GET"])
@@ -564,4 +592,6 @@ def sync_download():
 if __name__ == "__main__":
     os.makedirs(SAVES_DIR, exist_ok=True)
     logger.info("Starting Network PC Manager on port 1337")
+    # Warm the cache so the first page load already shows online state.
+    threading.Thread(target=run_scan, daemon=True).start()
     app.run(host="0.0.0.0", port=1337)
